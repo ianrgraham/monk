@@ -70,7 +70,7 @@ def LJ(nlist: hoomd.md.nlist.NList) -> hoomd.md.pair.Pair:
     return lj
 
 def LJ1208(nlist: hoomd.md.nlist.NList) -> hoomd.md.pair.Pair:
-    '''Kob-Anderson Lennard-Jones potential
+    '''Kob-Anderson Lennard-Jones potential with 12-8 modification
     '''
     r_cutoff = 2.5
     eps_AA = 1
@@ -94,7 +94,7 @@ def LJ1208(nlist: hoomd.md.nlist.NList) -> hoomd.md.pair.Pair:
 
     return lj
 
-
+# TODO seems to be broken
 def WCA(nlist: hoomd.md.nlist.NList) -> hoomd.md.pair.Pair:
     '''WCA potential
     '''
@@ -137,7 +137,7 @@ def WCA(nlist: hoomd.md.nlist.NList) -> hoomd.md.pair.Pair:
     table.r_cut[('B', 'B')] = r_cutoff*sig_BB
     return table
 
-
+# TODO seems to be broken
 def mLJ(nlist: hoomd.md.nlist.NList, delta: float) -> hoomd.md.pair.Pair:
     '''Kob-Anderson Lennard-Jones potential with modified well width
     '''

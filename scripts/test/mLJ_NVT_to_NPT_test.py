@@ -1,16 +1,16 @@
-# context boilerplate
-import hoomd.md as md
-import hoomd
-import numpy as np
 import os
 import sys
 import tempfile
 
 from pathlib import Path
 
-# sys.path.insert(0, "src")
+import hoomd
+import numpy as np
+
 from monk import pair, prep
 
+out_dir = Path(os.environ["MONK_DATA_DIR"]) / "test"
+os.makedirs(out_dir, exist_ok=True)
 
 # use SLURM_ARRAY_ID to define temperature
 sim_temp = 0.47
@@ -24,8 +24,8 @@ phi = 1.2
 
 # initialize hoomd state
 print("Init context")
-gpu = hoomd.device.GPU()
-sim = hoomd.Simulation(device=gpu, seed=2)
+device = hoomd.device.GPU()
+sim = hoomd.Simulation(device=device, seed=2)
 
 print(N)
 
@@ -80,19 +80,26 @@ with tempfile.TemporaryDirectory() as tmpdir:
     gsd_writer.log = logger
 
     sim.run(0)
-    print("start:", thermodynamic_properties.pressure)
+    print("start:", thermodynamic_properties.pressure, thermodynamic_properties.volume)
 
     # run initial thermalization
     sim.run(4e3) # 1_000 
-    print("therm:", thermodynamic_properties.pressure)
+    print("therm:", thermodynamic_properties.pressure, thermodynamic_properties.volume)
+
+    # 
+    print(integrator.forces[0])
+    integrator.forces.clear()
+    lj = pair.LJ1208(cell)
+    integrator.forces.append(lj)
+    print(integrator.forces[0])
 
     for i in range(10):
         sim.run(4e2) # 1_000 second
-        print("quench:", thermodynamic_properties.pressure)
+        print("quench:", thermodynamic_properties.pressure, thermodynamic_properties.volume)
 
     for i in range(100):
         sim.run(4e2) # 10_000 seconds
-        print("equil:", thermodynamic_properties.pressure)
+        print("equil:", thermodynamic_properties.pressure, thermodynamic_properties.volume)
         pressure = thermodynamic_properties.pressure
 
     npt = hoomd.md.methods.NPT(
@@ -103,9 +110,11 @@ with tempfile.TemporaryDirectory() as tmpdir:
         tauS=0.5,
         couple="none")
 
+    print(integrator.methods[0])
     integrator.methods.clear()
     integrator.methods.append(npt)
+    print(integrator.methods[0])
 
     for i in range(100):
         sim.run(4e2) # 10_000 seconds
-        print("cp:", thermodynamic_properties.pressure)
+        print("cp:", thermodynamic_properties.pressure, thermodynamic_properties.volume)

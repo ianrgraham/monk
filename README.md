@@ -1,4 +1,4 @@
-# monk v0.1.0
+# monk
 The name here doesn't mean much, but this repo is essentially a collection of ready-to-go scripts and utilities for running simulations using HOOMD v3. 
 
 # Setup

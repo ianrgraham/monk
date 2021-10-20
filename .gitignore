@@ -1,2 +1,5 @@
-# HOOMD output
+# HOOMD output, if any
 *.gsd
+
+# dotenv to hide secrets locally
+.env

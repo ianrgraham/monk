@@ -1,5 +1,20 @@
 # monk
-The name here doesn't mean much, but this repo is essentially a collection of ready-to-go scripts and utilities for running simulations using HOOMD v3. 
+The name here doesn't mean much, but this repo is essentially a collection of ready-to-go scripts and utilities for running simulations using HOOMDv3. Research workflows that depend strictly upon this repository can be found in the `workflows` directory. The workflow manager used here is `Snakemake`.
+
+# Dependencies
+    
+ - conda >= 4.10
+ - direnv >= 2.25
+ - pybind11 >= 2.2
+ - Eigen >= 3.2
+ - CMake >= 3.9
 
 # Setup
-Since HOOMD is a bit stuborn with its insistence on only distributing its binaries though `conda`, that's how we'll setup our environment. `environment.yml` can be used to create a new conda env with the right dependencies. If you have `direnv` installed with the proper extensions for `anaconda`, the environment will be automatically loaded by the shell.
+We use `direnv` to automatically configure the environment of the project. With it installed, cd'ing into the project root will create/activate a local python environment that we will use to build HOOMD and run our analyses.
+
+To build HOOMD and any plugins, run the included build scripts
+
+```
+./build-base-hoomd.sh
+./build-hoomd-plugins.sh
+```

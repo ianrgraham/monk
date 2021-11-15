@@ -6,6 +6,8 @@
 
 # python virtual environment
 .venv
+__pycache__
+*.pyc
 
 # hoomd
 .build

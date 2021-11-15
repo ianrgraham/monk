@@ -1,6 +1,7 @@
 from typing import Dict
 
 import hoomd
+import hoomd.pair_plugin.pair as p_pair
 import numpy as np
 
 # This is all garbage (at the moment)!
@@ -51,7 +52,7 @@ def table_params(width: int, pot_func, r_min: float, r_max:float, coeff=None) ->
     return dict(r_min=r_min, V=V, F=F)
 
 
-def LJ(nlist: hoomd.md.nlist.NList) -> hoomd.md.pair.Pair:
+def KA_LJ(nlist: hoomd.md.nlist.NList) -> hoomd.md.pair.Pair:
     '''Kob-Anderson Lennard-Jones potential
     '''
     r_cutoff = 2.5
@@ -71,6 +72,31 @@ def LJ(nlist: hoomd.md.nlist.NList) -> hoomd.md.pair.Pair:
     lj.r_cut[('A', 'B')] = r_cutoff*sig_AB
     lj.r_on[('A', 'B')] = r_on_cutoff*sig_AB
     lj.params[('B', 'B')] = dict(epsilon=eps_BB, sigma=sig_BB)
+    lj.r_cut[('B', 'B')] = r_cutoff*sig_BB
+    lj.r_on[('B', 'B')] = r_on_cutoff*sig_BB
+
+    return lj
+
+def KA_modLJ(nlist: hoomd.md.nlist.NList, delta: float) -> hoomd.md.pair.Pair:
+    '''Kob-Anderson Lennard-Jones potential with modified well width
+    '''
+    r_cutoff = 2.5
+    eps_AA = 1
+    eps_AB = 1.5
+    eps_BB = 0.5
+    sig_AA = 1
+    sig_AB = 0.8
+    sig_BB = 0.88
+    r_on_cutoff = 0.0
+    # specify Lennard-Jones interactions between particle pairs
+    lj = p_pair.ExamplePair(nlist=nlist)
+    lj.params[('A', 'A')] = dict(epsilon=eps_AA, sigma=sig_AA, delta=delta)
+    lj.r_cut[('A', 'A')] = r_cutoff*sig_AA
+    lj.r_on[('A', 'A')] = r_on_cutoff*sig_AA
+    lj.params[('A', 'B')] = dict(epsilon=eps_AB, sigma=sig_AB, delta=delta)
+    lj.r_cut[('A', 'B')] = r_cutoff*sig_AB
+    lj.r_on[('A', 'B')] = r_on_cutoff*sig_AB
+    lj.params[('B', 'B')] = dict(epsilon=eps_BB, sigma=sig_BB, delta=delta)
     lj.r_cut[('B', 'B')] = r_cutoff*sig_BB
     lj.r_on[('B', 'B')] = r_on_cutoff*sig_BB
 

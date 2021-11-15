@@ -6,6 +6,6 @@ ENABLE_GPU=ON
 
 cmake -B .build/hoomd -S hoomd-blue -DENABLE_GPU=$ENABLE_GPU
 
-cmake --build/hoomd .build -j$NUM_THREADS
+cmake --build .build/hoomd -j$NUM_THREADS
 
-cmake --install/build .build
+cmake --install .build/hoomd

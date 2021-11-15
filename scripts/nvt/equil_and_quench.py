@@ -1,0 +1,123 @@
+import pathlib
+import tempfile
+import argparse
+import sys
+
+from inspect import signature
+
+import hoomd
+import numpy as np
+
+from monk import prep, pair
+
+valid_output_formats = [".gsd"]
+
+parser = argparse.ArgumentParser(description="Initialize a packing of LJ-like"
+        " particles, equilibrate them, and then quench the configuration.")
+parser.add_argument("ofile", type=str, help=f"Output file (allowed formats: {valid_output_formats}")
+parser.add_argument("--num", type=int, help="Number of particles to simulate.", default=4096)
+parser.add_argument("--pair", nargs="+", help="Set the potential pair with any function callable in 'monk.pair'", default=["KA_modLJ", 0.0])
+parser.add_argument("--dt", type=float, default=2.5e-2)
+parser.add_argument("--phi", type=float, default=1.2)
+parser.add_argument("--temps", type=float, nargs=2, default=[1.5, 0.47])
+parser.add_argument("--equil-time", type=int, default=10)
+parser.add_argument("--quench-rate", type=float, default=5e-1)
+parser.add_argument("--dump-rate", type=float, default=1.0)
+parser.add_argument("--sim-time", type=int, default=1e2)
+parser.add_argument("--seed", type=int, help="Random seed to initialize the RNG.", default=27)
+parser.add_argument("--dump-setup", action="store_true")
+
+args = parser.parse_args()
+
+ofile = pathlib.Path(args.ofile)
+
+N = args.num
+(init_temp, sim_temp) = tuple(args.temps)
+dT = sim_temp - init_temp
+dt = args.dt
+phi = args.phi
+seed = args.seed
+
+pair_len = len(args.pair)
+assert(pair_len >= 1)
+pair_name = args.pair[0]
+pair_args = tuple()
+if pair_len > 1:
+    pair_args = tuple(args.pair[1:])
+
+pair_func = getattr(pair, pair_name)
+signatures = list(signature(pair_func).parameters.values())[1:]
+arguments = []
+for arg, sig in zip(pair_args, signatures):
+    arguments.append(sig.annotation(arg))
+arguments = tuple(arguments)
+
+# initialize hoomd state
+print("Initialize HOOMD simulation")
+device = hoomd.device.auto_select()
+sim = hoomd.Simulation(device=device, seed=seed)
+print(f"Running on {device.devices[0]}")
+
+# create equilibrated 3D LJ configuration
+rng = prep.init_rng(seed)  # random generator for placing particles
+snapshot = prep.approx_euclidean_snapshot(
+    N,
+    np.cbrt(N / phi),
+    rng,
+    dim=3,
+    particle_types=['A', 'B'],
+    ratios=[80, 20])
+sim.create_state_from_snapshot(snapshot)
+
+
+# set simtential
+print(f"Set potential. {{ pair: {pair_name}, args: {arguments} }}")
+integrator = hoomd.md.Integrator(dt=dt)
+cell = hoomd.md.nlist.Cell()
+pot_pair = pair_func(cell, *arguments)
+integrator.forces.append(pot_pair)
+
+# start and end of ramp
+start = int(args.equil_time / dt)
+end = start + int(abs(dT / dt / args.quench_rate))
+
+variant = hoomd.variant.Ramp(init_temp, sim_temp, int(start), int(end))
+nvt = hoomd.md.methods.NVT(
+    kT=variant,
+    filter=hoomd.filter.All(),
+    tau=0.5)
+integrator.methods.append(nvt)
+sim.operations.integrator = integrator
+
+sim.state.thermalize_particle_momenta(filter=hoomd.filter.All(), kT=init_temp)
+
+proto_sim_steps = int(args.sim_time / dt)
+
+if args.dump_setup:
+    sim.run(0)
+    sim_steps = end + proto_sim_steps
+else:
+    sim.run(end)
+    sim_steps = proto_sim_steps
+
+thermodynamic_properties = hoomd.md.compute.ThermodynamicQuantities(
+    filter=hoomd.filter.All())
+sim.operations.computes.append(thermodynamic_properties)
+
+logger = hoomd.logging.Logger()
+
+logger.add(thermodynamic_properties)
+logger.add(sim, quantities=['timestep', 'walltime'])
+
+dump_time = int(args.dump_rate/dt)
+
+gsd_writer = hoomd.write.GSD(filename=str(ofile),
+                            trigger=hoomd.trigger.Periodic(dump_time),
+                            mode='wb',
+                            filter=hoomd.filter.All(),
+                            log = logger)
+
+sim.operations.writers.append(gsd_writer)
+gsd_writer.log = logger
+
+sim.run(sim_steps)

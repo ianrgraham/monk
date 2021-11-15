@@ -1,5 +1,14 @@
-# HOOMD output, if any
+# HOOMD output, if any ...
 *.gsd
 
 # dotenv to hide secrets locally
 .env
+
+# python virtual environment
+.venv
+
+# hoomd
+.build
+
+# working state of conda environment, periodically created
+droplet_environment.yml

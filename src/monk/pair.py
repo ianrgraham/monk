@@ -3,6 +3,13 @@ from typing import Dict
 import hoomd
 import numpy as np
 
+# This is all garbage (at the moment)!
+# There is something wrong with the Table implementation on GPUs
+# in HOOMDv3
+
+# Anyway, I should be writing my own kernels
+# The Table incurs a pretty big slowdown
+
 
 def WCA_pot_smooth(r, rmin, rmax, epsilon, sigma):
     V = 4 * epsilon * ((sigma / r)**12 - (sigma / r)**6) + \

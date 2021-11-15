@@ -1,0 +1,3 @@
+[submodule "hoomd-blue"]
+	path = hoomd-blue
+	url = https://github.com/ianrgraham/hoomd-blue

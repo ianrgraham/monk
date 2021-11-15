@@ -9,7 +9,7 @@ import numpy as np
 
 from monk import pair, prep
 
-out_dir = Path(os.environ["MONK_DATA_DIR"]) / "test"
+out_dir = Path(os.environ["MONK_DATA_DIR"]) / "monk/test"
 os.makedirs(out_dir, exist_ok=True)
 
 # use SLURM_ARRAY_ID to define temperature

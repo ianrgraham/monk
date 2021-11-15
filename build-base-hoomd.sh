@@ -1,5 +1,7 @@
 #!/bin/bash
 
+rm -rf .build/hoomd
+
 cmake -B .build/hoomd -S hoomd-blue -DENABLE_GPU=$ENABLE_GPU
 
 cmake --build .build/hoomd -j$BUILD_THREADS

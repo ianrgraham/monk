@@ -1,6 +1,8 @@
 #!/bin/bash
 
-cmake -B .build/plugins -S plugins -DENABLE_GPU=$ENABLE_GPU
+rm -rf .build/plugins
+
+cmake -B .build/plugins -S plugins -DENABLE_HIP=$ENABLE_GPU
 
 cmake --build .build/plugins -j$BUILD_THREADS
 

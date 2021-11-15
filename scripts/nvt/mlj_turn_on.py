@@ -2,6 +2,7 @@ import pathlib
 import tempfile
 import argparse
 import sys
+# import matplotlib.pyplot as plt
 
 from inspect import signature
 
@@ -15,42 +16,27 @@ valid_output_formats = [".gsd"]
 parser = argparse.ArgumentParser(description="Initialize a packing of LJ-like"
         " particles, equilibrate them, and then quench the configuration.")
 parser.add_argument("ofile", type=str, help=f"Output file (allowed formats: {valid_output_formats}")
-parser.add_argument("--num", type=int, help="Number of particles to simulate.", default=4096)
-parser.add_argument("--pair", nargs="+", help="Set the potential pair with any function callable in 'monk.pair'", default=["KA_modLJ", 0.0])
-parser.add_argument("--dt", type=float, default=2.5e-3)
+parser.add_argument("--num", type=int, help="Number of particles to simulate.", default=256)
+parser.add_argument("--dt", type=float, default=1e-3)
 parser.add_argument("--phi", type=float, default=1.2)
-parser.add_argument("--temps", type=float, nargs=2, default=[1.5, 0.47])
+parser.add_argument("--temp", type=float, default=1.5)
+parser.add_argument("--deltas", type=float, nargs=3, default=[0.0, 0.5, 11])
 parser.add_argument("--equil-time", type=int, default=100)
-parser.add_argument("--quench-rate", type=float, default=5e-2)
-parser.add_argument("--dump-rate", type=float, default=1.0)
-parser.add_argument("--sim-time", type=int, default=1e2)
+parser.add_argument("--step-time", type=float, default=100)
+parser.add_argument("--dump-rate", type=float, default=0.01)
 parser.add_argument("--seed", type=int, help="Random seed to initialize the RNG.", default=27)
-parser.add_argument("--dump-setup", action="store_true")
 
 args = parser.parse_args()
 
 ofile = pathlib.Path(args.ofile)
 
 N = args.num
-(init_temp, sim_temp) = tuple(args.temps)
-dT = sim_temp - init_temp
+temp = args.temp
 dt = args.dt
 phi = args.phi
 seed = args.seed
 
-pair_len = len(args.pair)
-assert(pair_len >= 1)
-pair_name = args.pair[0]
-pair_args = tuple()
-if pair_len > 1:
-    pair_args = tuple(args.pair[1:])
-
-pair_func = getattr(pair, pair_name)
-signatures = list(signature(pair_func).parameters.values())[1:]
-arguments = []
-for arg, sig in zip(pair_args, signatures):
-    arguments.append(sig.annotation(arg))
-arguments = tuple(arguments)
+delta_params = tuple(args.deltas)
 
 # initialize hoomd state
 print("Initialize HOOMD simulation")
@@ -71,34 +57,24 @@ sim.create_state_from_snapshot(snapshot)
 
 
 # set simtential
-print(f"Set potential. {{ pair: {pair_name}, args: {arguments} }}")
+print("Set potential")
 integrator = hoomd.md.Integrator(dt=dt)
 cell = hoomd.md.nlist.Cell()
-pot_pair = pair_func(cell, *arguments)
+pot_pair = pair.KA_modLJ(cell, 0.0)
 integrator.forces.append(pot_pair)
 
 # start and end of ramp
-start = int(args.equil_time / dt)
-end = start + int(abs(dT / dt / args.quench_rate))
+equil_steps = int(args.equil_time / dt)
+delta_steps = int(args.step_time / dt)
 
-variant = hoomd.variant.Ramp(init_temp, sim_temp, int(start), int(end))
 nvt = hoomd.md.methods.NVT(
-    kT=variant,
+    kT=temp,
     filter=hoomd.filter.All(),
     tau=0.5)
 integrator.methods.append(nvt)
 sim.operations.integrator = integrator
 
-sim.state.thermalize_particle_momenta(filter=hoomd.filter.All(), kT=init_temp)
-
-proto_sim_steps = int(args.sim_time / dt)
-
-if args.dump_setup:
-    sim.run(0)
-    sim_steps = end + proto_sim_steps
-else:
-    sim.run(end)
-    sim_steps = proto_sim_steps
+sim.state.thermalize_particle_momenta(filter=hoomd.filter.All(), kT=temp)
 
 thermodynamic_properties = hoomd.md.compute.ThermodynamicQuantities(
     filter=hoomd.filter.All())
@@ -115,9 +91,18 @@ gsd_writer = hoomd.write.GSD(filename=str(ofile),
                             trigger=hoomd.trigger.Periodic(dump_time),
                             mode='wb',
                             filter=hoomd.filter.All(),
-                            log = logger)
+                            log=logger)
 
 sim.operations.writers.append(gsd_writer)
-gsd_writer.log = logger
 
-sim.run(sim_steps)
+sim.run(equil_steps)
+
+print(thermodynamic_properties.pressure)
+
+for delta in np.linspace(*delta_params):
+    
+    lj = pair.KA_modLJ(cell, delta)
+    integrator.forces[0] = lj
+
+    sim.run(delta_steps)
+    print(delta, thermodynamic_properties.pressure)

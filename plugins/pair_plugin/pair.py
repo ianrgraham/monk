@@ -16,7 +16,7 @@ import hoomd.md.pair as _pair
 
 validate_nlist = OnlyTypes(NList)
 
-class ExamplePair(_pair.Pair):
+class ModLJ(_pair.Pair):
     r"""Modified Lennard-Jones pair potential to showcase an example of a pair plugin.
 
     Args:
@@ -99,3 +99,6 @@ class ExamplePair(_pair.Pair):
                 _md.NeighborList.storageMode.full)
         self._cpp_obj = cls(self._simulation.state._cpp_sys_def,
                             self.nlist._cpp_obj)
+        
+        grandparent = super(_pair.Pair, self)
+        grandparent._attach()

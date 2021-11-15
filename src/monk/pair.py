@@ -51,6 +51,17 @@ def table_params(width: int, pot_func, r_min: float, r_max:float, coeff=None) ->
     # print(len(V), len(F))
     return dict(r_min=r_min, V=V, F=F)
 
+def update_params(pair: hoomd.md.pair.Pair, kwargs=None):
+        
+    # print(list(pair.params.items()))
+
+    for k, v in pair.params.items():
+        v.update(kwargs)
+
+    pair._update_param_dict()
+
+    # print(list(pair.params.items()))
+
 
 def KA_LJ(nlist: hoomd.md.nlist.NList) -> hoomd.md.pair.Pair:
     '''Kob-Anderson Lennard-Jones potential
@@ -89,7 +100,7 @@ def KA_modLJ(nlist: hoomd.md.nlist.NList, delta: float) -> hoomd.md.pair.Pair:
     sig_BB = 0.88
     r_on_cutoff = 0.0
     # specify Lennard-Jones interactions between particle pairs
-    lj = p_pair.ExamplePair(nlist=nlist)
+    lj = p_pair.ModLJ(nlist=nlist)
     lj.params[('A', 'A')] = dict(epsilon=eps_AA, sigma=sig_AA, delta=delta)
     lj.r_cut[('A', 'A')] = r_cutoff*sig_AA
     lj.r_on[('A', 'A')] = r_on_cutoff*sig_AA

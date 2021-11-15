@@ -10,6 +10,7 @@
 #include <string>
 #endif
 
+#include "hoomd/md/EvaluatorPairLJ.h"
 #include "hoomd/HOOMDMath.h"
 
 /*! \file EvaluatorPairExample.h
@@ -29,6 +30,8 @@
 #endif
 
 namespace hoomd
+    {
+namespace md
     {
 //! Class for evaluating the LJ pair potential
 /*! <b>Original</b>
@@ -143,7 +146,7 @@ class EvaluatorPairExample
             auto sigma(v["sigma"].cast<Scalar>());
             auto epsilon(v["epsilon"].cast<Scalar>());
             auto delta(v["delta"].cast<Scalar>());
-            auto dsigma = sigma - delta / pow(2.0, 1. / 6.);
+            auto dsigma = sigma * (1.0 - delta / pow(2.0, 1. / 6.));
             lj1 = 4.0 * epsilon * pow(dsigma, 12.0);
             lj2 = 4.0 * epsilon * pow(dsigma, 6.0);
             dlt = delta;
@@ -152,7 +155,7 @@ class EvaluatorPairExample
         // this constructor facilitates unit testing
         param_type(Scalar sigma, Scalar epsilon, Scalar delta, bool managed = false)
             {
-            auto dsigma = sigma - delta / pow(2.0, 1. / 6.);
+            auto dsigma = sigma * (1.0 - delta / pow(2.0, 1. / 6.));
             lj1 = 4.0 * epsilon * pow(dsigma, 12.0);
             lj2 = 4.0 * epsilon * pow(dsigma, 6.0);
             dlt = delta;
@@ -162,7 +165,7 @@ class EvaluatorPairExample
             {
             pybind11::dict v;
             auto sigma6 = lj1 / lj2;
-            v["sigma"] = pow(sigma6, 1. / 6.) + dlt / pow(2.0, 1. / 6.);
+            v["sigma"] = pow(sigma6, 1. / 6.) / (1 - dlt / pow(2.0, 1. / 6.));
             v["epsilon"] = lj2 / (sigma6 * 4);
             v["delta"] = dlt;
             return v;
@@ -225,6 +228,8 @@ class EvaluatorPairExample
             {
             // Must take sqrt to subtract \Delta
             // original: Scalar r2inv = Scalar(1.0) / rsq;
+            // Scalar r2inv = Scalar(1.0) / rsq;
+            
             Scalar rinv = Scalar(1.0) / (fast::sqrt(rsq) - dlt);
             Scalar r2inv = rinv * rinv;
 
@@ -237,7 +242,8 @@ class EvaluatorPairExample
                 {
                 // Also need to fix this
                 // original: Scalar rcut2inv = Scalar(1.0) / rcutsq;
-                Scalar rcutinv = Scalar(1.0) / (fast::sqrt(rsq) - dlt);
+                // Scalar rcut2inv = Scalar(1.0) / rcutsq;
+                Scalar rcutinv = Scalar(1.0) / (slow::sqrt(rsq) - dlt);
                 Scalar rcut2inv = rcutinv * rcutinv;
                 Scalar rcut6inv = rcut2inv * rcut2inv * rcut2inv;
                 pair_eng -= rcut6inv * (lj1 * rcut6inv - lj2);
@@ -272,6 +278,7 @@ class EvaluatorPairExample
     Scalar dlt; //!< dlt parameter extracted from the params passed to the constructor
     };
 
+    } // end namespace md
     } // end namespace hoomd
 
 #endif // __PAIR_EVALUATOR_EXAMPLE_H__

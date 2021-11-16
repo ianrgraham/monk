@@ -16,14 +16,14 @@ parser = argparse.ArgumentParser(description="Initialize a packing of LJ-like"
         " particles, equilibrate them, and then quench the configuration.")
 parser.add_argument("ofile", type=str, help=f"Output file (allowed formats: {valid_output_formats}")
 parser.add_argument("--num", type=int, help="Number of particles to simulate.", default=4096)
-parser.add_argument("--pair", nargs="+", help="Set the potential pair with any function callable in 'monk.pair'", default=["KA_modLJ", 0.0])
+parser.add_argument("--pair", nargs="+", help="Set the potential pair with any function callable in 'monk.pair'", default=["KA_LJ"])
 parser.add_argument("--dt", type=float, default=2.5e-3)
 parser.add_argument("--phi", type=float, default=1.2)
 parser.add_argument("--temps", type=float, nargs=2, default=[1.5, 0.47])
-parser.add_argument("--equil-time", type=int, default=100)
-parser.add_argument("--quench-rate", type=float, default=5e-2)
+parser.add_argument("--equil-time", type=int, default=1000)
+parser.add_argument("--quench-rate", type=float, default=1e-3)
 parser.add_argument("--dump-rate", type=float, default=1.0)
-parser.add_argument("--sim-time", type=int, default=1e2)
+parser.add_argument("--sim-time", type=int, default=1e5)
 parser.add_argument("--seed", type=int, help="Random seed to initialize the RNG.", default=27)
 parser.add_argument("--dump-setup", action="store_true")
 
@@ -58,7 +58,6 @@ device = hoomd.device.auto_select()
 sim = hoomd.Simulation(device=device, seed=seed)
 print(f"Running on {device.devices[0]}")
 
-# create equilibrated 3D LJ configuration
 rng = prep.init_rng(seed)  # random generator for placing particles
 snapshot = prep.approx_euclidean_snapshot(
     N,

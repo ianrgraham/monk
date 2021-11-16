@@ -1,0 +1,13 @@
+# simulation dependent parameters
+temps: [0.45, 0.47, 0.49, 0.51, 0.53, 0.55, 0.58, 0.61, 0.64, 0.67, 0.7, 0.75, 0.8, 0.9, 1.0]
+
+# constant details of all sims
+N: 4096
+pair: ["KA_LJ"]
+dt: 2.5e-3
+phi: 1.2
+start_temp: 1.5
+equil_time: 10_000
+quench_rate: 1.0e-3
+dump_rate: 100
+sim_time: 100_000

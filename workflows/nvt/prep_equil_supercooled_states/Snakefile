@@ -1,0 +1,33 @@
+configfile: "config.yaml"
+
+# prepend monk dataset path
+def dd(post_path):
+    import os
+    return os.environ["MONK_DATA_DIR"] + "/monk/" + post_path
+
+rule all:
+    input: 
+        expand(
+            dd("supercooled_liquids/num-{num}/temp-{temp}.gsd"),
+            temp=config["temps"],
+            num=config["N"]
+        )
+
+rule equilibrate:
+    output:
+        dd("supercooled_liquids/num-{num}/temp-{temp}.gsd")
+    params:
+        pair=config["pair"],
+        dt=config["dt"],
+        phi=config["phi"],
+        start_temp=config["start_temp"],
+        equil_time=config["equil_time"],
+        quench_rate=config["quench_rate"],
+        dump_rate=config["dump_rate"],
+        sim_time=config["sim_time"]
+    shell:
+        "python ../../scripts/nvt/equil_and_quench {output} "
+        "--num {num} --pair {params.pair} --dt {params.dt} --phi {params.phi} "
+        "--temps {params.start_temp} {temp} --equil-time {params.equil_time} "
+        "--quench-rate {params.quench_rate} --dump-rate {params.dump_rate} "
+        "--sim-time {params.sim_time}"

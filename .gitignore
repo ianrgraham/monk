@@ -14,3 +14,6 @@ __pycache__
 
 # working state of conda environment, periodically created
 droplet_environment.yml
+
+# snakemake
+.snakemake

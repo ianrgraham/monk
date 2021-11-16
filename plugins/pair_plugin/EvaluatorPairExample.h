@@ -243,7 +243,7 @@ class EvaluatorPairExample
                 // Also need to fix this
                 // original: Scalar rcut2inv = Scalar(1.0) / rcutsq;
                 // Scalar rcut2inv = Scalar(1.0) / rcutsq;
-                Scalar rcutinv = Scalar(1.0) / (slow::sqrt(rsq) - dlt);
+                Scalar rcutinv = Scalar(1.0) / (fast::sqrt(rcutsq) - dlt);
                 Scalar rcut2inv = rcutinv * rcutinv;
                 Scalar rcut6inv = rcut2inv * rcut2inv * rcut2inv;
                 pair_eng -= rcut6inv * (lj1 * rcut6inv - lj2);

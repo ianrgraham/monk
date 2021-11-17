@@ -12,20 +12,24 @@ from monk import prep, pair
 
 valid_output_formats = [".gsd"]
 
-parser = argparse.ArgumentParser(description="Initialize a packing of LJ-like"
-        " particles, equilibrate them, and then quench the configuration.")
+parser = argparse.ArgumentParser(description="Initialize a system of \
+        particles (preferably in the liquid state), equilibrate the configuration, \
+        and then quench to a lower temperature (in the glassy or supercooled regime). \
+        From there we continue to run the simulation.")
 parser.add_argument("ofile", type=str, help=f"Output file (allowed formats: {valid_output_formats}")
 parser.add_argument("--num", type=int, help="Number of particles to simulate.", default=4096)
 parser.add_argument("--pair", nargs="+", help="Set the potential pair with any function callable in 'monk.pair'", default=["KA_LJ"])
-parser.add_argument("--dt", type=float, default=2.5e-3)
-parser.add_argument("--phi", type=float, default=1.2)
-parser.add_argument("--temps", type=float, nargs=2, default=[1.5, 0.47])
-parser.add_argument("--equil-time", type=int, default=1000)
-parser.add_argument("--quench-rate", type=float, default=1e-3)
-parser.add_argument("--dump-rate", type=float, default=1.0)
-parser.add_argument("--sim-time", type=int, default=1e5)
+parser.add_argument("--dt", type=float, default=2.5e-3, help="Timestep size")
+parser.add_argument("--phi", type=float, default=1.2, help="Volume fraction")
+parser.add_argument("--temps", type=float, nargs=2, default=[1.5, 0.47], help="Starting and ending temperatures")
+parser.add_argument("--equil-time", type=int, default=1000, help="Time to equilibrate before quenching")
+parser.add_argument("--quench-rate", type=float, default=1e-3, help="Rate (dT/dt) at which to change the temperature")
+parser.add_argument("--dump-rate", type=float, default=1.0, help="Rate at which to write to disk")
+parser.add_argument("--throw-away", type=int, default=0, help="Additional time to wait before writing")
+parser.add_argument("--sim-time", type=int, default=1e5, help="Total time to simulate post-quench")
 parser.add_argument("--seed", type=int, help="Random seed to initialize the RNG.", default=27)
-parser.add_argument("--dump-setup", action="store_true")
+parser.add_argument("--dump-setup", action="store_true", help="Start recording data right away")
+parser.add_argument("--scratch", action="store_true", help="Use scratch space ")
 
 args = parser.parse_args()
 
@@ -37,6 +41,8 @@ dT = sim_temp - init_temp
 dt = args.dt
 phi = args.phi
 seed = args.seed
+
+throw_away = args.throw_away
 
 pair_len = len(args.pair)
 assert(pair_len >= 1)
@@ -94,9 +100,9 @@ proto_sim_steps = int(args.sim_time / dt)
 
 if args.dump_setup:
     sim.run(0)
-    sim_steps = end + proto_sim_steps
+    sim_steps = end + throw_away + proto_sim_steps
 else:
-    sim.run(end)
+    sim.run(end + throw_away)
     sim_steps = proto_sim_steps
 
 thermodynamic_properties = hoomd.md.compute.ThermodynamicQuantities(

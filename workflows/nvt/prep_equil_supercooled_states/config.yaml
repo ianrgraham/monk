@@ -18,4 +18,4 @@ sim_time: 100_000
 throw_away: 100_000
 
 # meta
-dir_tag: "final"
+dir_tag: "run1"

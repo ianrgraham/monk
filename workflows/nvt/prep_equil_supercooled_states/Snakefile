@@ -15,7 +15,7 @@ def get_all():
             print(pair_phi)
             tpair = '-'.join(pair_phi[0])
             tphi = pair_phi[1]
-            outputs.append(dd(f"supercooled_liquids/pair-{tpair}_phi-{tphi}/temp-{temp}.gsd"))
+            outputs.append(dd(f"supercooled_states/{config['dir_tag']}/pair-{tpair}_phi-{tphi}/temp-{temp}.gsd"))
 
     return outputs
 
@@ -25,7 +25,7 @@ rule all:
 
 rule equilibrate:
     output:
-        dd("supercooled_liquids/pair-{pair}_phi-{phi}/temp-{temp}.gsd")
+        dd("supercooled_states/{dir_tag}/pair-{pair}_phi-{phi}/temp-{temp}.gsd")
     params:
         split_pair=lambda wildcards: wildcards.pair.split("-"),
         num=config["N"],
@@ -36,11 +36,11 @@ rule equilibrate:
         dump_rate=config["dump_rate"],
         sim_time=config["sim_time"]
     resources:
-        gpu=1
+        gpu=1,
         mem_mb=1000
     shell:
-        "python ../../scripts/nvt/equil_and_quench {output} "
+        "python ../../../scripts/nvt/quench_and_equil.py {output} "
         "--num {params.num} --pair {params.split_pair} --dt {params.dt} --phi {wildcards.phi} "
-        "--temps {params.start_temp} {temp} --equil-time {params.equil_time} "
+        "--temps {params.start_temp} {wildcards.temp} --equil-time {params.equil_time} "
         "--quench-rate {params.quench_rate} --dump-rate {params.dump_rate} "
         "--sim-time {params.sim_time}"

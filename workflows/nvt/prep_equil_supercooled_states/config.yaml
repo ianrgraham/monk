@@ -15,7 +15,7 @@ equil_time: 1_000
 quench_rate: 1.0e-3
 dump_rate: 100
 sim_time: 100_000
-throw_away: 10_000
+throw_away: 100_000
 
 # meta
 dir_tag: "final"

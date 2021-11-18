@@ -3,31 +3,44 @@ configfile: "config.yaml"
 # prepend monk dataset path
 def dd(post_path):
     import os
-    return os.environ["MONK_DATA_DIR"] + "/monk/" + post_path
+    tmp = os.environ["MONK_DATA_DIR"] + "/monk/" + post_path
+    return tmp
+
+def get_all():
+    outputs = []
+    print("hey")
+    for temp in config["temps"]:
+        print(temp)
+        for pair_phi in config["pairs_phis"]:
+            print(pair_phi)
+            tpair = '-'.join(pair_phi[0])
+            tphi = pair_phi[1]
+            outputs.append(dd(f"supercooled_liquids/pair-{tpair}_phi-{tphi}/temp-{temp}.gsd"))
+
+    return outputs
 
 rule all:
     input: 
-        expand(
-            dd("supercooled_liquids/num-{num}/temp-{temp}.gsd"),
-            temp=config["temps"],
-            num=config["N"]
-        )
+        *get_all()
 
 rule equilibrate:
     output:
-        dd("supercooled_liquids/num-{num}/temp-{temp}.gsd")
+        dd("supercooled_liquids/pair-{pair}_phi-{phi}/temp-{temp}.gsd")
     params:
-        pair=config["pair"],
+        split_pair=lambda wildcards: wildcards.pair.split("-"),
+        num=config["N"],
         dt=config["dt"],
-        phi=config["phi"],
         start_temp=config["start_temp"],
         equil_time=config["equil_time"],
         quench_rate=config["quench_rate"],
         dump_rate=config["dump_rate"],
         sim_time=config["sim_time"]
+    resources:
+        gpu=1
+        mem_mb=1000
     shell:
         "python ../../scripts/nvt/equil_and_quench {output} "
-        "--num {num} --pair {params.pair} --dt {params.dt} --phi {params.phi} "
+        "--num {params.num} --pair {params.split_pair} --dt {params.dt} --phi {wildcards.phi} "
         "--temps {params.start_temp} {temp} --equil-time {params.equil_time} "
         "--quench-rate {params.quench_rate} --dump-rate {params.dump_rate} "
         "--sim-time {params.sim_time}"

@@ -1,12 +1,17 @@
-# configfile: "config.yaml"
 
-# prepend monk dataset path
+
 def dd(post_path):
+    """
+    Prepend the data directory to the provided path
+    """
     import os
     tmp = os.environ["MONK_DATA_DIR"] + "/monk/" + post_path
     return tmp
 
-def get_all():
+def gen_all():
+    """
+    Iterate over data supplied in the configuration file for all rule
+    """
     outputs = []
     for temp in config["temps"]:
         print(temp)
@@ -19,7 +24,7 @@ def get_all():
 
 rule all:
     input: 
-        *get_all()
+        *gen_all()
 
 rule equilibrate:
     output:

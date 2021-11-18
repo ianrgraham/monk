@@ -1,5 +1,5 @@
 # simulation dependent parameters
-temps: [0.41, 0.43, 0.45, 0.47, 0.49, 0.51, 0.53, 0.55, 0.58, 0.61, 0.64, 0.67, 0.7, 0.75, 0.8, 0.9, 1.0]
+temps: [0.45, 0.47, 0.49, 0.51, 0.53, 0.55, 0.58, 0.61, 0.64, 0.67, 0.7, 0.75, 0.8, 0.9, 1.0]
 pairs_phis: [
   [["KA_LJ"], 1.2],
   [["KA_ModLJ", 0.1], 1.15],
@@ -9,7 +9,7 @@ pairs_phis: [
 
 # constant details of all sims
 N: 4096
-dt: 2.5e-3
+dt: 1.0e-3
 start_temp: 1.5
 equil_time: 1_000
 quench_rate: 1.0e-3

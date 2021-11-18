@@ -1,21 +1,21 @@
-# simulation dependent parameters
-temps: [1.0]
+# simulation dependent parameter
+temps: [0.7, 0.8, 0.9, 1.0]
 pairs_phis: [
   [["KA_LJ"], "1.2"],
-  # [["KA_ModLJ", "0.1"], "1.15"],
-  # [["KA_ModLJ", "0.2"], "1.1"],
-  # [["KA_ModLJ", "0.3"], "1.05"]
+  [["KA_ModLJ", "0.1"], "1.15"],
+  [["KA_ModLJ", "0.2"], "1.1"],
+  [["KA_ModLJ", "0.3"], "1.05"]
 ]
 
 # constant details of all sims
 N: 4096
 dt: 1.0e-3
 start_temp: 1.5
-equil_time: 10
-quench_rate: 1.0e-1
-dump_rate: 10
-sim_time: 10
-throw_away: 10
+equil_time: 100
+quench_rate: 1.0e-2
+dump_rate: 1
+sim_time: 100
+throw_away: 100
 
 # meta
 dir_tag: "test"

@@ -60,7 +60,7 @@ arguments = tuple(arguments)
 
 # initialize hoomd state
 print("Initialize HOOMD simulation")
-device = hoomd.device.auto_select()
+device = hoomd.device.GPU()
 sim = hoomd.Simulation(device=device, seed=seed)
 print(f"Running on {device.devices[0]}")
 

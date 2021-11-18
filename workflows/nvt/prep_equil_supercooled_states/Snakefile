@@ -1,4 +1,4 @@
-configfile: "config.yaml"
+# configfile: "config.yaml"
 
 # prepend monk dataset path
 def dd(post_path):
@@ -8,11 +8,9 @@ def dd(post_path):
 
 def get_all():
     outputs = []
-    print("hey")
     for temp in config["temps"]:
         print(temp)
         for pair_phi in config["pairs_phis"]:
-            print(pair_phi)
             tpair = '-'.join(pair_phi[0])
             tphi = pair_phi[1]
             outputs.append(dd(f"supercooled_states/{config['dir_tag']}/pair-{tpair}_phi-{tphi}/temp-{temp}.gsd"))
@@ -36,6 +34,7 @@ rule equilibrate:
         dump_rate=config["dump_rate"],
         sim_time=config["sim_time"]
     resources:
+        time="3-00:00:00",
         gpu=1,
         mem_mb=1000
     shell:

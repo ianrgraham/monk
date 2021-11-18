@@ -17,3 +17,6 @@ droplet_environment.yml
 
 # snakemake
 .snakemake
+
+# slurm output
+*.out

@@ -41,7 +41,7 @@ delta_params = tuple(args.deltas)
 
 # initialize hoomd state
 print("Initialize HOOMD simulation")
-device = hoomd.device.auto_select()
+device = hoomd.device.GPU()
 sim = hoomd.Simulation(device=device, seed=seed)
 print(f"Running on {device.devices[0]}")
 
@@ -114,7 +114,7 @@ pressure_B = np.mean(pressures[-20:])
 
 print(pressure_A, pressure_B)
 
-plt.show()
+# plt.show()
 
 print("Swap NVT integrator with NPT")
 npt = hoomd.md.methods.NPT(
@@ -143,4 +143,4 @@ _, (_, pressures) = plot.scalar_quantity(traj, 'md/compute/ThermodynamicQuantiti
 
 del traj
 
-plt.show()
+# plt.show()

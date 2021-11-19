@@ -25,7 +25,7 @@ parser.add_argument("--temps", type=float, nargs=2, default=[1.5, 0.47], help="S
 parser.add_argument("--equil-time", type=int, default=1000, help="Time to equilibrate before quenching")
 parser.add_argument("--quench-rate", type=float, default=1e-3, help="Rate (dT/dt) at which to change the temperature")
 parser.add_argument("--dump-rate", type=float, default=1.0, help="Rate at which to write to disk")
-parser.add_argument("--throw-away", type=int, default=0, help="Additional time to wait before writing")
+parser.add_argument("--throw-away", type=float, default=0, help="Additional time to wait before writing")
 parser.add_argument("--sim-time", type=int, default=1e5, help="Total time to simulate post-quench")
 parser.add_argument("--seed", type=int, help="Random seed to initialize the RNG.", default=27)
 parser.add_argument("--dump-setup", action="store_true", help="Start recording data right away")
@@ -42,7 +42,7 @@ dt = args.dt
 phi = args.phi
 seed = args.seed
 
-throw_away = args.throw_away
+throw_away = int(args.throw_away / dt)
 
 pair_len = len(args.pair)
 assert(pair_len >= 1)

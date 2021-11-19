@@ -39,7 +39,7 @@ dt = args.dt
 phi = args.phi
 seed = args.seed
 
-throw_away = args.throw_away
+throw_away = int(args.throw_away / dt)
 
 pair_len = len(args.pair)
 assert(pair_len >= 1)

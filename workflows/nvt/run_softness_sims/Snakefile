@@ -13,13 +13,13 @@ def gen_all():
     Iterate over data supplied in the configuration file for all rule
     """
     outputs = []
-    seed = 0
+    seed = 100
     for temp in config["temps"]:
         print(temp)
         for pair_phi in config["pairs_phis"]:
             tpair = '-'.join(pair_phi[0])
             tphi = pair_phi[1]
-            outputs.append(dd(f"supercooled_states/{config['dir_tag']}/pair-{tpair}_phi-{tphi}/temp-{temp}_seed-{seed}.gsd"))
+            outputs.append(dd(f"pre_softness/{config['dir_tag']}/pair-{tpair}_phi-{tphi}/temp-{temp}_seed-{seed}.gsd"))
             seed += 1
 
     return outputs
@@ -28,9 +28,11 @@ rule all:
     input: 
         *gen_all()
 
-rule equilibrate:
-    output:
+rule simulate:
+    input:
         dd("supercooled_states/{dir_tag}/pair-{pair}_phi-{phi}/temp-{temp}_seed-{seed}.gsd")
+    output:
+        dd("pre_softness/{dir_tag}/pair-{pair}_phi-{phi}/temp-{temp}_seed-{seed}.gsd")
     params:
         split_pair=lambda wildcards: wildcards.pair.split("-"),
         num=config["N"],
@@ -45,7 +47,7 @@ rule equilibrate:
         gpu=1,
         mem_mb=1000
     shell:
-        "python ../../../scripts/nvt/quench_and_equil.py {output} "
+        "python ../../../scripts/nvt/run_and_dump_fire.py {output} "
         "--num {params.num} --pair {params.split_pair} --dt {params.dt} --phi {wildcards.phi} "
         "--temps {params.start_temp} {wildcards.temp} --equil-time {params.equil_time} "
         "--quench-rate {params.quench_rate} --dump-rate {params.dump_rate} "

@@ -1,0 +1,17 @@
+# simulation dependent parameter
+temps: [0.7, 0.8, 0.9, 1.0]
+pairs_phis: [
+  [["KA_LJ"], "1.2"],
+  [["KA_ModLJ", "0.1"], "1.15"],
+  [["KA_ModLJ", "0.2"], "1.1"],
+  [["KA_ModLJ", "0.3"], "1.05"]
+]
+
+# constant details of all sims
+dt: 1.0e-3
+start_index: -1
+dump_rate: 1
+sim_time: 100
+
+# meta
+dir_tag: "test"

@@ -58,7 +58,7 @@ rule simulate:
         gpu=1,
         mem_mb=1000
     shell:
-        "python ../../../scripts/nvt/run_and_dump_fire.py {output} "
+        "python ../../../scripts/nvt/resume_and_dump.py {input} {output} "
         "--pair {params.split_pair} --dt {params.dt}"
         "--temp {wildcards.temp} "
         "--dump-rate {params.dump_rate} "

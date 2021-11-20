@@ -30,8 +30,8 @@ def config_param(path, tag):
     obj = config[tag]
     dic = {tag:obj}
     fpath = path.replace("{"+tag+"}", obj)
-    print(fpath)
     return fpath
+
 
 rule all:
     input: 
@@ -39,7 +39,13 @@ rule all:
 
 rule simulate:
     input:
-        dd(config_param("supercooled_states/{in_dir_tag}/pair-{pair}_phi-{phi}/temp-{temp}_seed-{old_seed}.gsd", "in_dir_tag"))
+        dd(
+            config_param(
+                "supercooled_states/{in_dir_tag}/pair-{pair}_phi-{phi}/temp-{temp}_seed-*.gsd",
+                "in_dir_tag"
+    
+            )
+        )
     output:
         protected(dd("pre_softness/{out_dir_tag}/pair-{pair}_phi-{phi}/temp-{temp}_seed-{seed}.gsd"))
     params:

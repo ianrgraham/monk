@@ -41,9 +41,8 @@ rule simulate:
     input:
         dd(
             config_param(
-                "supercooled_states/{in_dir_tag}/pair-{pair}_phi-{phi}/temp-{temp}_seed-*.gsd",
+                "supercooled_states/{in_dir_tag}/pair-{pair}_phi-{phi}/temp-{temp}_seed-{seed}.gsd",
                 "in_dir_tag"
-    
             )
         )
     output:

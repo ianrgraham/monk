@@ -35,7 +35,7 @@ ofile = pathlib.Path(args.ofile)
 
 ifile_index = args.ifile_index
 
-temp = tuple(args.temp)
+temp = args.temp
 dt = args.dt
 seed = args.seed
 

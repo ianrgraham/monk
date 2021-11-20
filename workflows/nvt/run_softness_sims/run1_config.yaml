@@ -15,4 +15,4 @@ throw_away: 10_000
 # meta
 in_dir_tag: "run1"
 out_dir_tag: "run1"
-starting_seed: 100
+starting_seed: 0

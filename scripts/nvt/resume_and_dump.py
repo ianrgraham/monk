@@ -14,7 +14,7 @@ valid_input_formats = [".gsd"]
 valid_output_formats = [".gsd"]
 
 parser = argparse.ArgumentParser(description="Resuming from a prior simulation, \
-    run an NVT ensemble ")
+    run an NVT ensemble")
 parser.add_argument("ifile", type=str, help=f"Input file (allowed formats: {valid_input_formats}")
 parser.add_argument("ofile", type=str, help=f"Output file (allowed formats: {valid_output_formats}")
 parser.add_argument("--ifile-index", type=int, default=-1, help="Index from which to start the simulation")

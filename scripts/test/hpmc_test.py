@@ -48,5 +48,3 @@ position = position[0:N_particles]
 
 orientation = [(1, 0, 0, 0)] * N_particles
 
-render(position, orientation, L)
-

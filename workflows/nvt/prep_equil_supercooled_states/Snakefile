@@ -33,7 +33,7 @@ rule all:
 
 rule equilibrate:
     output:
-        dd("supercooled_states/{dir_tag}/pair-{pair}_phi-{phi}/temp-{temp}_seed-{seed}.gsd")
+        protected(dd("supercooled_states/{dir_tag}/pair-{pair}_phi-{phi}/temp-{temp}_seed-{seed}.gsd"))
     params:
         split_pair=lambda wildcards: wildcards.pair.split("-"),
         num=config["N"],

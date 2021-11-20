@@ -13,26 +13,16 @@ from monk import prep, pair
 valid_input_formats = [".gsd"]
 valid_output_formats = [".gsd"]
 
-parser = argparse.ArgumentParser(description="Resuming from a prior simulation, ")
+parser = argparse.ArgumentParser(description="From a traj file, quench each frame to the inherent structure using FIRE")
 parser.add_argument("ifile", type=str, help=f"Input file (allowed formats: {valid_input_formats}")
 parser.add_argument("ofile", type=str, help=f"Output file (allowed formats: {valid_output_formats}")
-parser.add_argument("--ifile-index", type=int, default=-1, help="Index from which to start the simulation")
 parser.add_argument("--pair", nargs="+", help="Set the potential pair with any function callable in 'monk.pair'", default=["KA_LJ"])
 parser.add_argument("--dt", type=float, default=2.5e-3, help="Timestep size")
-parser.add_argument("--temp", type=float, default=1.5, help="Starting and ending temperatures")
-parser.add_argument("--dump-rate", type=float, default=1.0, help="Rate at which to write to disk")
-parser.add_argument("--throw-away", type=int, default=0, help="Additional time to wait before writing")
-parser.add_argument("--sim-time", type=int, default=1e5, help="Total time to simulate post-quench")
-parser.add_argument("--seed", type=int, help="Random seed to initialize the RNG")
-parser.add_argument("--rand-veloc", action="store_true", help="Randomize particle velocities at the start")
-parser.add_argument("--scratch", action="store_true", help="Use scratch space")
 
 args = parser.parse_args()
 
 ifile = pathlib.Path(args.ifile)
 ofile = pathlib.Path(args.ofile)
-
-ifile_index = args.ifile_index
 
 temp = tuple(args.temp)
 dt = args.dt

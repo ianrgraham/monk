@@ -1,4 +1,4 @@
-
+in_dir_tag = config["in_dir_tag"]
 
 def dd(post_path):
     """
@@ -13,16 +13,25 @@ def gen_all():
     Iterate over data supplied in the configuration file for all rule
     """
     outputs = []
-    seed = 100
+    try:
+        seed = int(config["starting_seed"])
+    except:
+        seed = 0
     for temp in config["temps"]:
-        print(temp)
         for pair_phi in config["pairs_phis"]:
             tpair = '-'.join(pair_phi[0])
             tphi = pair_phi[1]
-            outputs.append(dd(f"pre_softness/{config['dir_tag']}/pair-{tpair}_phi-{tphi}/temp-{temp}_seed-{seed}.gsd"))
+            outputs.append(dd(f"pre_softness/{config['out_dir_tag']}/pair-{tpair}_phi-{tphi}/temp-{temp}_seed-{seed}.gsd"))
             seed += 1
 
     return outputs
+
+def config_param(path, tag):
+    obj = config[tag]
+    dic = {tag:obj}
+    fpath = path.replace("{"+tag+"}", obj)
+    print(fpath)
+    return fpath
 
 rule all:
     input: 
@@ -30,25 +39,23 @@ rule all:
 
 rule simulate:
     input:
-        dd("supercooled_states/{dir_tag}/pair-{pair}_phi-{phi}/temp-{temp}_seed-{seed}.gsd")
+        dd(config_param("supercooled_states/{in_dir_tag}/pair-{pair}_phi-{phi}/temp-{temp}_seed-{seed}.gsd", "in_dir_tag"))
     output:
-        dd("pre_softness/{dir_tag}/pair-{pair}_phi-{phi}/temp-{temp}_seed-{seed}.gsd")
+        protected(dd("pre_softness/{out_dir_tag}/pair-{pair}_phi-{phi}/temp-{temp}_seed-{seed}.gsd"))
     params:
         split_pair=lambda wildcards: wildcards.pair.split("-"),
-        num=config["N"],
         dt=config["dt"],
-        start_temp=config["start_temp"],
-        equil_time=config["equil_time"],
-        quench_rate=config["quench_rate"],
         dump_rate=config["dump_rate"],
-        sim_time=config["sim_time"]
+        sim_time=config["sim_time"],
+        throw_away=config["throw_away"]
     resources:
-        time="3-00:00:00",
+        time="1-00:00:00",
         gpu=1,
         mem_mb=1000
     shell:
         "python ../../../scripts/nvt/run_and_dump_fire.py {output} "
-        "--num {params.num} --pair {params.split_pair} --dt {params.dt} --phi {wildcards.phi} "
-        "--temps {params.start_temp} {wildcards.temp} --equil-time {params.equil_time} "
-        "--quench-rate {params.quench_rate} --dump-rate {params.dump_rate} "
-        "--sim-time {params.sim_time} --seed {wildcards.seed}"
+        "--pair {params.split_pair} --dt {params.dt}"
+        "--temp {wildcards.temp} "
+        "--dump-rate {params.dump_rate} "
+        "--sim-time {params.sim_time} --throw-away {params.throw_away} "
+        "--seed {wildcards.seed}"

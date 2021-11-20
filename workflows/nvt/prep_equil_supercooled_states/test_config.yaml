@@ -15,7 +15,7 @@ equil_time: 100
 quench_rate: 1.0e-2
 dump_rate: 1
 sim_time: 100
-throw_away: 100
+throw_away: 0
 
 # meta
 dir_tag: "test"

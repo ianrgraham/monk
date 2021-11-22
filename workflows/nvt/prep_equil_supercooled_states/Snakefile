@@ -53,5 +53,5 @@ rule equilibrate:
         "--num {params.num} --pair {params.split_pair} --dt {params.dt} --phi {wildcards.phi} "
         "--temps {params.start_temp} {wildcards.temp} --equil-time {params.equil_time} "
         "--quench-rate {params.quench_rate} --dump-rate {params.dump_rate} "
-        "--sim-time {params.sim_time} --throw-away {paramsthrow_away} "
+        "--sim-time {params.sim_time} --throw-away {params.throw_away} "
         "--seed {wildcards.seed}"

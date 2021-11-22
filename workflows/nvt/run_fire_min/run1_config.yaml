@@ -1,0 +1,15 @@
+# simulation dependent parameters
+temps: [0.45, 0.47, 0.49, 0.51, 0.53, 0.55, 0.58, 0.61, 0.64, 0.67, 0.7, 0.75, 0.8, 0.9, 1.0]
+pairs_phis: [
+  [["KA_LJ"], "1.2"],
+  [["KA_ModLJ", "0.1"], "1.15"]
+]
+
+# constant details of all sims
+dt: 1.0e-2
+fire_steps: 1000
+
+# meta
+in_dir_tag: "run1"
+out_dir_tag: "run1"
+starting_seed: 0

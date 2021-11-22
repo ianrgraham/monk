@@ -1,0 +1,62 @@
+in_dir_tag = config["in_dir_tag"]
+
+def dd(post_path):
+    """
+    Prepend the data directory to the provided path
+    """
+    import os
+    tmp = os.environ["MONK_DATA_DIR"] + "/monk/" + post_path
+    return tmp
+
+def gen_all():
+    """
+    Iterate over data supplied in the configuration file for all rule
+    """
+    outputs = []
+    try:
+        seed = int(config["starting_seed"])
+    except:
+        seed = 0
+    for temp in config["temps"]:
+        for pair_phi in config["pairs_phis"]:
+            tpair = '-'.join(pair_phi[0])
+            tphi = pair_phi[1]
+            outputs.append(dd(f"pre_softness_fire/{config['out_dir_tag']}/pair-{tpair}_phi-{tphi}/temp-{temp}_seed-{seed}.gsd"))
+            seed += 1
+
+    return outputs
+
+def config_param(path, tag):
+    obj = config[tag]
+    dic = {tag:obj}
+    fpath = path.replace("{"+tag+"}", obj)
+    return fpath
+
+
+rule all:
+    input: 
+        *gen_all()
+
+rule minimize_fire:
+    input:
+        dd(
+            config_param(
+                "pre_softness/{in_dir_tag}/pair-{pair}_phi-{phi}/temp-{temp}_seed-{seed}.gsd",
+                "in_dir_tag"
+            )
+        )
+    output:
+        protected(dd("pre_softness_fire/{out_dir_tag}/pair-{pair}_phi-{phi}/temp-{temp}_seed-{seed}.gsd"))
+    params:
+        split_pair=lambda wildcards: wildcards.pair.split("-"),
+        dt=config["dt"],
+        fire_steps=config["fire_steps"]
+
+    resources:
+        time="1-00:00:00",
+        gpu=1,
+        mem_mb=1000
+    shell:
+        "python ../../../scripts/nvt/fire_traj.py {input} {output} "
+        "--pair {params.split_pair} --dt {params.dt} "
+        "--fire-steps {params.fire_steps}"

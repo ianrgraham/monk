@@ -1,4 +1,5 @@
-name: /home/ian/Projects/work/monk/.venv
+prefix: ./.venv
+name: monk
 channels:
   - conda-forge
   - defaults

@@ -12,5 +12,5 @@ fire_steps: 1000
 # meta
 in_dir_tag: "run2"
 out_dir_tag: "run2"
-starting_seed: 0
+starting_seed: 30
 log_pair: False

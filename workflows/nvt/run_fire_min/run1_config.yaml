@@ -13,3 +13,4 @@ fire_steps: 1000
 in_dir_tag: "run1"
 out_dir_tag: "run1"
 starting_seed: 0
+log_pair: False

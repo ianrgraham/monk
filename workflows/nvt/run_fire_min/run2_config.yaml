@@ -6,13 +6,11 @@ pairs_phis: [
 ]
 
 # constant details of all sims
-dt: 1.0e-3
-start_index: -1
-dump_rate: 1
-sim_time: 10_000
-throw_away: 10_000
+dt: 1.0e-2
+fire_steps: 1000
 
 # meta
 in_dir_tag: "run2"
 out_dir_tag: "run2"
-starting_seed: 30
+starting_seed: 0
+log_pair: False

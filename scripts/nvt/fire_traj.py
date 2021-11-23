@@ -12,7 +12,6 @@ import numpy as np
 from monk import pair
 
 
-
 class AsyncTrigger(hoomd.trigger.Trigger):
 
     def __init__(self):
@@ -57,6 +56,7 @@ parser.add_argument("ofile", type=str, help=f"Output file (allowed formats: {val
 parser.add_argument("--pair", nargs="+", help="Set the potential pair with any function callable in 'monk.pair'", default=["KA_LJ"])
 parser.add_argument("--dt", type=float, default=2.5e-2, help="Timestep size")
 parser.add_argument("--fire-steps", type=int, default=1000, help="Step interval to check for FIRE convergence")
+parser.add_argument("--log-pair", action="store_true", help="Additionally log information about forces and energy")
 
 args = parser.parse_args()
 
@@ -65,6 +65,7 @@ ofile = pathlib.Path(args.ofile)
 
 dt = args.dt
 fire_steps = args.fire_steps
+log_pair = args.log_pair
 
 pair_len = len(args.pair)
 assert(pair_len >= 1)
@@ -109,8 +110,11 @@ async_write_trig = AsyncTrigger()
 custom_op = hoomd.update.CustomUpdater(action=custom_updater,
                                       trigger=async_trig)
 
-logger = hoomd.logging.Logger()
-logger.add(pot_pair, quantities=['energies', 'forces'])
+if log_pair:
+    logger = hoomd.logging.Logger()
+    logger.add(pot_pair, quantities=['energies', 'forces'])
+else:
+    logger = None
 
 gsd_writer = hoomd.write.GSD(filename=str(ofile),
                             trigger=async_write_trig,
@@ -139,7 +143,7 @@ for idx, snap in enumerate(traj):
     # print(f"{idx}: Running Fire")
     # run until converged
     while not integrator.converged:
-        print(f"{idx}: Working")
+        # print(f"{idx}: Working")
         sim.run(fire_steps)
 
     # print(f"{idx}: Activate write trigger")

@@ -29,8 +29,6 @@ ofile = pathlib.Path(args.ofile)
 dt = args.dt
 fire_steps = args.fire_steps
 
-throw_away = int(args.throw_away / dt)
-
 pair_len = len(args.pair)
 assert(pair_len >= 1)
 pair_name = args.pair[0]

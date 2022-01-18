@@ -20,3 +20,6 @@ droplet_environment.yml
 
 # slurm output
 *.out
+
+# image output
+*.png

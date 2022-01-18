@@ -1,4 +1,5 @@
 in_dir_tag = config["in_dir_tag"]
+log_pair = config["log_pair"]
 
 def dd(post_path):
     """
@@ -32,6 +33,12 @@ def config_param(path, tag):
     fpath = path.replace("{"+tag+"}", obj)
     return fpath
 
+def cond_flag(cond, flag):
+    if cond:
+        return flag
+    else:
+        return ""
+
 
 rule all:
     input: 
@@ -50,7 +57,8 @@ rule minimize_fire:
     params:
         split_pair=lambda wildcards: wildcards.pair.split("-"),
         dt=config["dt"],
-        fire_steps=config["fire_steps"]
+        fire_steps=config["fire_steps"],
+        log_pair=cond_flag(log_pair, "--log-pair")
 
     resources:
         time="1-00:00:00",
@@ -59,4 +67,4 @@ rule minimize_fire:
     shell:
         "python ../../../scripts/nvt/fire_traj.py {input} {output} "
         "--pair {params.split_pair} --dt {params.dt} "
-        "--fire-steps {params.fire_steps}"
+        "--fire-steps {params.fire_steps} {params.log_pair}"

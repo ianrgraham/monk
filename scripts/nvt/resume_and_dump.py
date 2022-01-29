@@ -20,7 +20,7 @@ parser.add_argument("ofile", type=str, help=f"Output file (allowed formats: {val
 parser.add_argument("--ifile-index", type=int, default=-1, help="Index from which to start the simulation")
 parser.add_argument("--pair", nargs="+", help="Set the potential pair with any function callable in 'monk.pair'", default=["KA_LJ"])
 parser.add_argument("--dt", type=float, default=2.5e-3, help="Timestep size")
-parser.add_argument("--temp", type=float, default=1.5, help="Starting and ending temperatures")
+parser.add_argument("--temp", type=float, default=1.5, help="Simulation temperature")
 parser.add_argument("--dump-rate", type=float, default=1.0, help="Rate at which to write to disk")
 parser.add_argument("--throw-away", type=int, default=0, help="Additional time to wait before writing")
 parser.add_argument("--sim-time", type=int, default=1e5, help="Total time to simulate post-quench")

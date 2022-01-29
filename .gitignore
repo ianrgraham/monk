@@ -23,3 +23,7 @@ droplet_environment.yml
 
 # image output
 *.png
+
+# any analysis output
+*.npy
+*.parquet

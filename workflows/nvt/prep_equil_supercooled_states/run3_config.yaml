@@ -1,0 +1,23 @@
+# extended temperature range 
+# simulation dependent parameters
+temps: [1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]
+pairs_phis: [
+  [["KA_LJ"], "1.2"],
+  [["KA_ModLJ", "0.1"], "1.15"],
+  [["KA_ModLJ", "0.2"], "1.1"],
+  [["KA_ModLJ", "0.3"], "1.05"]
+]
+
+# constant details of all sims
+N: 4096
+dt: 1.0e-3
+start_temp: 2.0
+equil_time: 10_000
+quench_rate: 1.0e-4
+dump_rate: 100
+sim_time: 10_000
+throw_away: 10_000
+
+# meta
+dir_tag: "run3"
+starting_seed: 60

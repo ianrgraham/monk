@@ -128,25 +128,14 @@ sim.operations.writers.append(gsd_writer)
 # iterate over traj frames
 for idx, snap in enumerate(traj):
 
-    # load in snap and reset FIRE minimizer
-    # print(f"{idx}: Set snap")
-    custom_updater.set_snap(snap)
-    # print(f"{idx}: Activate trigger")
-    async_trig.activate()
-    # update custom trigger
-    # print(f"{idx}: Run for 2 steps to activate trigger")
-    sim.run(2)
 
-    # print(f"{idx}: Reset FIRE")
+    custom_updater.set_snap(snap)
+    async_trig.activate()
+    sim.run(2)
     integrator.reset()
 
-    # print(f"{idx}: Running Fire")
-    # run until converged
     while not integrator.converged:
-        # print(f"{idx}: Working")
         sim.run(fire_steps)
 
-    # print(f"{idx}: Activate write trigger")
     async_write_trig.activate()
-    # print(f"{idx}: Run for 2 steps to activate trigger")
     sim.run(2)

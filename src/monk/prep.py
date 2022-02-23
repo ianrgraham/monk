@@ -1,16 +1,47 @@
-from typing import List, Sequence, Union
+import argparse
+
+from typing import List, Sequence, Union, Tuple, Callable
+from inspect import signature
 
 import numpy as np
 import hoomd
 import gsd.hoomd
 
+from . import pair as src_pair
+
+class SimulationArgumentParser(argparse.ArgumentParser):
+    """Command line parser for `hoomd` simulations."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
 def init_rng(
         seed: Union[int, Sequence[int]]
         ) -> Union[np.random.Generator, Sequence[np.random.Generator]]:
-    '''Simple helper function to spawn random number generators
-    '''
+    '''Simple helper function to spawn random number generators.'''
     return np.random.default_rng(seed)
+
+
+def search_for_pair(pair: List) -> Tuple[Callable[..., hoomd.md.pair.Pair], List]:
+    """Search for function matching `pair` in `monk.pair`."""
+
+    pair_len = len(pair)
+    assert(pair_len >= 1)
+    pair_name = pair[0]
+    pair_args = tuple()
+    if pair_len > 1:
+        pair_args = tuple(pair[1:])
+
+    pair_func = getattr(src_pair, pair_name)
+    signatures = list(signature(pair_func).parameters.values())[1:]
+    # TODO apply more assert statements regarding the function signature
+    arguments = []
+    for arg, sig in zip(pair_args, signatures):
+        arguments.append(sig.annotation(arg))
+    arguments = tuple(arguments)
+
+    return 
+
 
 
 def approx_euclidean_snapshot(

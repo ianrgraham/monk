@@ -12,7 +12,7 @@ from schmeud.dynamics import thermal
 
 import pandas as pd
 
-from monk import pair, prep
+from monk import pair
 
 
 class AsyncTrigger(hoomd.trigger.Trigger):
@@ -138,8 +138,19 @@ run_fire = args.run_fire
 if run_fire:
     sys.exit("FIRE is not implemented for this code.")
 
-pair_func, arguments = prep.search_for_pair(args.pair)
-pair_name: str = args.pair[0]
+pair_len = len(args.pair)
+assert(pair_len >= 1)
+pair_name = args.pair[0]
+pair_args = tuple()
+if pair_len > 1:
+    pair_args = tuple(args.pair[1:])
+
+pair_func = getattr(pair, pair_name)
+signatures = list(signature(pair_func).parameters.values())[1:]
+arguments = []
+for arg, sig in zip(pair_args, signatures):
+    arguments.append(sig.annotation(arg))
+arguments = tuple(arguments)
 
 # initialize hoomd state
 print("Initialize HOOMD simulation")

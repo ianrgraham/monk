@@ -77,7 +77,7 @@ class UpdatePosThermalizeVel(hoomd.custom.Action):
         self._state.thermalize_particle_momenta(hoomd.filter.All(), self.temp)
 
 class PastSnapshotsBuffer(hoomd.custom.Action):
-    """Custom action to hold onto past simulation snapshots"""
+    """Custom action to hold onto past simulation snapshots."""
 
     def __init__(self):
         self.snap_buffer = []

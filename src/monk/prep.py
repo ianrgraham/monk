@@ -1,6 +1,6 @@
 import argparse
 
-from typing import Iterable, List, Sequence, Union, Tuple, Callable, Any
+from typing import Iterable, List, Optional, Sequence, Union, Tuple, Callable, Any
 from inspect import signature
 
 import numpy as np
@@ -54,7 +54,7 @@ def vary_potential_parameters(
     nlist: hoomd.md.nlist.NList,
     pair_func: Callable[..., hoomd.md.pair.Pair],
     param_iter: Iterable[Tuple],
-    steps: int
+    steps: int,
 ):  
     """Interlace variations to a pair potential and the running of a simulation.
 
@@ -88,8 +88,8 @@ def approx_euclidean_snapshot(
         L: float,
         rng: np.random.Generator,
         dim: int = 2,
-        particle_types: List[str] = ['A', 'B'],
-        ratios: List[int] = [50, 50]
+        particle_types: Optional[List[str]] = None,
+        ratios: Optional[List[int]] = None
         ) -> gsd.hoomd.Snapshot:
     '''Constucts hoomd simulation snapshot with regularly spaced particles on a
     euclidian lattice.
@@ -112,6 +112,12 @@ def approx_euclidean_snapshot(
     -------
         `Snapshot`: A valid `hoomd` simulation state.
     '''
+
+    if particle_types is None:
+        particle_types = ['A', 'B']
+    
+    if ratios is None:
+        ratios = [50, 50]
 
     # only valid dims in hoomd are 2 and 3
     assert dim in [2, 3], "Valid dims in hoomd are 2 and 3"

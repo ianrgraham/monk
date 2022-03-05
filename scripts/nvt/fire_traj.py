@@ -9,7 +9,7 @@ import hoomd
 from hoomd import custom
 import numpy as np
 
-from monk import pair
+from monk import pair, prep
 
 
 class AsyncTrigger(hoomd.trigger.Trigger):
@@ -67,19 +67,8 @@ dt = args.dt
 fire_steps = args.fire_steps
 log_pair = args.log_pair
 
-pair_len = len(args.pair)
-assert(pair_len >= 1)
-pair_name = args.pair[0]
-pair_args = tuple()
-if pair_len > 1:
-    pair_args = tuple(args.pair[1:])
-
-pair_func = getattr(pair, pair_name)
-signatures = list(signature(pair_func).parameters.values())[1:]
-arguments = []
-for arg, sig in zip(pair_args, signatures):
-    arguments.append(sig.annotation(arg))
-arguments = tuple(arguments)
+pair_func, arguments = prep.search_for_pair(args.pair)
+pair_name: str = args.pair[0]
 
 # initialize hoomd state
 print("Initialize HOOMD simulation")

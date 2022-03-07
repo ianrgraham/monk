@@ -35,28 +35,17 @@ args = parser.parse_args()
 
 ofile = pathlib.Path(args.ofile)
 
-N = args.num
+N: int = args.num
 (init_temp, sim_temp) = tuple(args.temps)
-dT = sim_temp - init_temp
-dt = args.dt
-phi = args.phi
-seed = args.seed
+dT: float = sim_temp - init_temp
+dt: float = args.dt
+phi: float = args.phi
+seed: int = args.seed
 
 throw_away = int(args.throw_away / dt)
 
-pair_len = len(args.pair)
-assert(pair_len >= 1)
-pair_name = args.pair[0]
-pair_args = tuple()
-if pair_len > 1:
-    pair_args = tuple(args.pair[1:])
-
-pair_func = getattr(pair, pair_name)
-signatures = list(signature(pair_func).parameters.values())[1:]
-arguments = []
-for arg, sig in zip(pair_args, signatures):
-    arguments.append(sig.annotation(arg))
-arguments = tuple(arguments)
+pair_func, arguments = prep.search_for_pair(args.pair)
+pair_name: str = args.pair[0]
 
 # initialize hoomd state
 print("Initialize HOOMD simulation")
@@ -75,7 +64,7 @@ snapshot = prep.approx_euclidean_snapshot(
 sim.create_state_from_snapshot(snapshot)
 
 
-# set simtential
+# set potential
 print(f"Set potential. {{ pair: {pair_name}, args: {arguments} }}")
 integrator = hoomd.md.Integrator(dt=dt)
 cell = hoomd.md.nlist.Cell()

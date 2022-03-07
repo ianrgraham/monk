@@ -12,7 +12,7 @@ from schmeud.dynamics import thermal
 
 import pandas as pd
 
-from monk import pair
+from monk import pair, prep
 
 
 class AsyncTrigger(hoomd.trigger.Trigger):
@@ -77,7 +77,7 @@ class UpdatePosThermalizeVel(hoomd.custom.Action):
         self._state.thermalize_particle_momenta(hoomd.filter.All(), self.temp)
 
 class PastSnapshotsBuffer(hoomd.custom.Action):
-    """Custom action to hold onto past simulation snapshots"""
+    """Custom action to hold onto past simulation snapshots."""
 
     def __init__(self):
         self.snap_buffer = []
@@ -138,19 +138,8 @@ run_fire = args.run_fire
 if run_fire:
     sys.exit("FIRE is not implemented for this code.")
 
-pair_len = len(args.pair)
-assert(pair_len >= 1)
-pair_name = args.pair[0]
-pair_args = tuple()
-if pair_len > 1:
-    pair_args = tuple(args.pair[1:])
-
-pair_func = getattr(pair, pair_name)
-signatures = list(signature(pair_func).parameters.values())[1:]
-arguments = []
-for arg, sig in zip(pair_args, signatures):
-    arguments.append(sig.annotation(arg))
-arguments = tuple(arguments)
+pair_func, arguments = prep.search_for_pair(args.pair)
+pair_name: str = args.pair[0]
 
 # initialize hoomd state
 print("Initialize HOOMD simulation")

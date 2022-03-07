@@ -1,11 +1,23 @@
+from typing import Optional
 import matplotlib.pyplot as plt
 
-def scalar_quantity(traj, quantity_name):
+from gsd.hoomd import Snapshot
+from matplotlib import axes
 
-    fig, ax = plt.subplots()
+def scalar_quantity(
+    traj: Snapshot,
+    quantity_name: str,
+    xlabel: Optional[str] = None,
+    ylabel: Optional[str] = None,
+    ax: Optional[axes.Axes] = None
+):
+
+    if ax is None:
+        fig, ax = plt.subplots()
+    else:
+        fig = ax.get_figure()
 
     timestep = []
-    walltime = []
     quantity = []
 
     for frame in traj:
@@ -14,5 +26,10 @@ def scalar_quantity(traj, quantity_name):
             frame.log[quantity_name][0])
 
     ax.plot(timestep, quantity)
+
+    if xlabel is not None:
+        plt.xlabel(xlabel)
+    if ylabel is not None:
+        plt.ylabel(ylabel)
 
     return (fig, ax), (timestep, quantity)

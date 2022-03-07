@@ -7,6 +7,7 @@ set(_${COMPONENT_NAME}_sources
 
 set(_${COMPONENT_NAME}_cu_sources
     ExampleDriverPotentialPairGPU.cu
+    HertzianDriverPotentialPairGPU.cu
     )
 
 if (ENABLE_HIP)

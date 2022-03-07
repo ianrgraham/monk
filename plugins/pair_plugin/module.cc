@@ -10,6 +10,7 @@
 #ifdef ENABLE_HIP
 #include "hoomd/md/PotentialPairGPU.h"
 #include "ExampleDriverPotentialPairGPU.cuh"
+#include "HertzianDriverPotentialPairGPU.cuh"
 #endif
 
 namespace hoomd
@@ -22,8 +23,10 @@ namespace md
 PYBIND11_MODULE(_pair_plugin, m)
     {
     detail::export_PotentialPair<PotentialPairExample>(m, "PotentialPairExample");
+    detail::export_PotentialPair<PotentialPairHertzian>(m, "PotentialPairHertzian");
 #ifdef ENABLE_HIP
     detail::export_PotentialPairGPU<PotentialPairExampleGPU, PotentialPairExample>(m, "PotentialPairExampleGPU");
+    detail::export_PotentialPairGPU<PotentialPairHertzianGPU, PotentialPairHertzian>(m, "PotentialPairHertzianGPU");
 #endif
     }
 

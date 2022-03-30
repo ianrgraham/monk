@@ -51,7 +51,7 @@ def search_for_pair(pair: List) -> Tuple[Callable[..., hoomd.md.pair.Pair], Tupl
 
 def vary_potential_parameters(
     sim: hoomd.Simulation,
-    nlist: hoomd.md.nlist.NList,
+    nlist: hoomd.md.nlist.NeighborList,
     pair_func: Callable[..., hoomd.md.pair.Pair],
     param_iter: Iterable[Tuple],
     steps: int,

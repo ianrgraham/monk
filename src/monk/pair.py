@@ -34,7 +34,7 @@ def hertz_pot(r, rmin, rmax, sigma):
     return (V, F)
 
 
-def KA_LJ(nlist: hoomd.md.nlist.NList) -> hoomd.md.pair.Pair:
+def KA_LJ(nlist: hoomd.md.nlist.NeighborList) -> hoomd.md.pair.Pair:
     '''Kob-Anderson Lennard-Jones potential
     '''
     r_cutoff = 2.5
@@ -59,7 +59,7 @@ def KA_LJ(nlist: hoomd.md.nlist.NList) -> hoomd.md.pair.Pair:
 
     return lj
 
-def KA_ModLJ(nlist: hoomd.md.nlist.NList, delta: float) -> hoomd.md.pair.Pair:
+def KA_ModLJ(nlist: hoomd.md.nlist.NeighborList, delta: float) -> hoomd.md.pair.Pair:
     '''Kob-Anderson Lennard-Jones potential with modified well width
     '''
     r_cutoff = 2.5
@@ -84,7 +84,7 @@ def KA_ModLJ(nlist: hoomd.md.nlist.NList, delta: float) -> hoomd.md.pair.Pair:
 
     return lj
 
-def LJ1208(nlist: hoomd.md.nlist.NList) -> hoomd.md.pair.Pair:
+def LJ1208(nlist: hoomd.md.nlist.NeighborList) -> hoomd.md.pair.Pair:
     '''Kob-Anderson Lennard-Jones potential with 12-8 modification
     '''
     r_cutoff = 2.5
@@ -110,7 +110,7 @@ def LJ1208(nlist: hoomd.md.nlist.NList) -> hoomd.md.pair.Pair:
     return lj
 
 # TODO need to update the table params to HOOMD v3
-def _Harmonic(nlist: hoomd.md.nlist.NList) -> hoomd.md.pair.Pair:
+def _Harmonic(nlist: hoomd.md.nlist.NeighborList) -> hoomd.md.pair.Pair:
     '''Harmonic potential
     '''
     myPair = hoomd.md.pair.Table(width=1000, nlist=nlist)
@@ -123,7 +123,7 @@ def _Harmonic(nlist: hoomd.md.nlist.NList) -> hoomd.md.pair.Pair:
     return myPair
 
 # TODO need to update the table params to HOOMD v3
-def _Hertzian(nlist: hoomd.md.nlist.NList) -> hoomd.md.pair.Pair:
+def _Hertzian(nlist: hoomd.md.nlist.NeighborList) -> hoomd.md.pair.Pair:
     '''Hertzian potential
     '''
     myPair = hoomd.md.pair.Table(width=1000, nlist=nlist)

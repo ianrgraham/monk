@@ -25,7 +25,7 @@ def init_rng(
 def len_from_phi(N: int, phi: float, dim: int = 3):
     """Calculate regular box length for a given particle density"""
     assert dim in [2, 3], "Valid dims in hoomd are 2 and 3"
-    return np.power(N / phi, dim)
+    return np.power(N / phi, 1/dim)
 
 
 def search_for_pair(pair: List) -> Tuple[Callable[..., hoomd.md.pair.Pair], Tuple]:
@@ -157,7 +157,5 @@ def approx_euclidean_snapshot(
         if j/N*100 > limits[idx]:
             idx += 1
         j += 1
-
-    snapshot.validate()
 
     return snapshot

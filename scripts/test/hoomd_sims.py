@@ -1,16 +1,23 @@
 import hoomd
 from monk import prep, pair
 import time
+import numpy as np
+import gsd.hoomd
+
+from typing import Optional, List
 
 start = time.time()
 
-cpu = hoomd.device.CPU(num_cpu_threads=1)
+cpu = hoomd.device.CPU()
 
 sim = hoomd.Simulation(device=cpu)
 
 N = 512
+phi = 1.2
 
-L = prep.len_from_phi(N, 1.2)
+L = prep.len_from_phi(N, phi)
+
+print(L)
 
 rng = prep.init_rng(0)
 snap = prep.approx_euclidean_snapshot(N, L, rng, dim=3, particle_types=["A", "B"], ratios=[80, 20])
@@ -20,7 +27,7 @@ sim.create_state_from_snapshot(snap)
 print("Loaded snap!")
 
 integrator = hoomd.md.Integrator(dt=1e-3)
-nlist = hoomd.md.nlist.Tree(0.1)
+nlist = hoomd.md.nlist.Tree(0.2)
 pot_pair = pair.KA_LJ(nlist)
 integrator.forces.append(pot_pair)
 
@@ -37,7 +44,7 @@ sim.operations.integrator = integrator
 
 print("Let's load it all up and run!")
 
-sim.run(100_000)
+sim.run(10_000)
 
 print("Success!")
 

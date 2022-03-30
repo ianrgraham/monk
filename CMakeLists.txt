@@ -4,4 +4,5 @@ project (MONK LANGUAGES C CXX)
 
 set(ENABLE_GPU ON CACHE BOOL "Enable CUDA GPU" FORCE)
 
-add_subproject(hoomd-blue)  # not currently working, use build script
+add_subdirectory(hoomd-blue)  # not currently working, use build script
+add_subdirectory(plugins)

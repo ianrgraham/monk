@@ -1,3 +1,6 @@
 [submodule "hoomd-blue"]
 	path = hoomd-blue
 	url = https://github.com/ianrgraham/hoomd-blue
+[submodule "extern/eigen"]
+	path = extern/eigen
+	url = git@github.com:eigen-mirror/eigen.git

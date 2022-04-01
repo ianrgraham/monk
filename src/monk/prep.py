@@ -89,7 +89,8 @@ def approx_euclidean_snapshot(
         rng: np.random.Generator,
         dim: int = 2,
         particle_types: Optional[List[str]] = None,
-        ratios: Optional[List[int]] = None
+        ratios: Optional[List[int]] = None,
+        diams: Optional[List[float]] = None
         ) -> gsd.hoomd.Snapshot:
     '''Constucts hoomd simulation snapshot with regularly spaced particles on a
     euclidian lattice.
@@ -107,6 +108,7 @@ def approx_euclidean_snapshot(
         `dim`: Physical dimension of the box (default=2).
         `particle_types`: List of particle labels (default=['A', 'B']).
         `ratios`: List of particle ratios (default=[50, 50]).
+        `diams`: List of particle diameters for visualization.
 
     Returns
     -------
@@ -125,7 +127,9 @@ def approx_euclidean_snapshot(
     assert N > 0, "Number of particles cannot be <= 0"
     len_types = len(particle_types)
     assert np.sum(ratios) == 100, "Ratios must sum to 100"
-    assert len_types == len(ratios), "Lens of 'particle_types' and 'ratios' must match" 
+    assert len_types == len(ratios), "Lens of 'particle_types' and 'ratios' must match"
+    if diams is not None:
+        assert len_types == len(diams)
 
     n = int(np.ceil(np.power(N, 1/dim)))
     x = np.linspace(-L/2, L/2, n, endpoint=False)

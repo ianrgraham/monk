@@ -2,8 +2,9 @@ import flow
 import hoomd
 import numpy as np
 import signac
+import os.path
 
-from monk import project_path, safe_clean_signac_project, grid
+from monk import project_path, project_view, safe_clean_signac_project, grid
 from monk import pair, prep
 
 class Project(flow.FlowProject):
@@ -90,7 +91,7 @@ def run_nvt_sim(job: signac.Project.Job):
 
     gsd_writer = hoomd.write.GSD(
         filename=job.fn("traj.gsd"),
-        trigger=LogTrigger(10, -2, 0.1, sim.timestep),
+        trigger=LogTrigger(10, 1, 0.1, sim.timestep),
         mode='wb',
         filter=hoomd.filter.All(),
     )
@@ -106,6 +107,7 @@ project: Project = Project.init_project(name="GenerateEquilibratedStates", root=
 # exit()
 
 # Initialize the data space
+new_sps = False
 seed = sum([int("init" in job.document) for job in project])
 for kT in np.linspace(1.0, 2.0, 5):
     sp = dict(N=512, phi=1.2, kT=float(kT), dt=1e-3, steps=100_000, equil_steps=100_000)
@@ -114,6 +116,14 @@ for kT in np.linspace(1.0, 2.0, 5):
         job.document["seed"] = seed
         job.document['init'] = True
         seed += 1
+        new_sps = True
+
+view = project_view("test-signac-gen")
+
+
+if new_sps or not os.path.exists(view):
+    print(view)
+    project.create_linked_view(prefix=view)
         
 
 if __name__ == '__main__':

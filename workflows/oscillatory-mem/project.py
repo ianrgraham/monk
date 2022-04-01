@@ -2,8 +2,9 @@ import flow
 import hoomd
 import numpy as np
 import signac
+import os.path
 
-from monk import project_path, safe_clean_signac_project, grid
+from monk import project_path, project_view, safe_clean_signac_project, grid
 from monk import pair, prep
 
 class Project(flow.FlowProject):
@@ -100,12 +101,13 @@ def run_nvt_sim(job: signac.Project.Job):
 
 
 
-project: Project = Project.init_project(name="GenerateEquilibratedStates", root=project_path("test-signac-gen"))
+project: Project = Project.init_project(name="OscillatoryMemory", root=project_path("oscillatory-mem"))
 
 # monk.safe_clean_signac_project("test-signac-gen")
 # exit()
 
 # Initialize the data space
+new_sps = False
 seed = sum([int("init" in job.document) for job in project])
 for kT in np.linspace(1.0, 2.0, 5):
     sp = dict(N=512, phi=1.2, kT=float(kT), dt=1e-3, steps=100_000, equil_steps=100_000)
@@ -114,7 +116,15 @@ for kT in np.linspace(1.0, 2.0, 5):
         job.document["seed"] = seed
         job.document['init'] = True
         seed += 1
-        
+        new_sps = True
+
+
+view = project_view("oscillatory-mem")
+
+
+if new_sps or not os.path.exists(view):
+    print(view)
+    project.create_linked_view(prefix=view)
 
 if __name__ == '__main__':
     project.main()

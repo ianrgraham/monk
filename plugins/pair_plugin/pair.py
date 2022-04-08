@@ -8,19 +8,19 @@ from hoomd import _hoomd
 from hoomd.md import _md
 from hoomd.pair_plugin import _pair_plugin
 import hoomd
-from hoomd.md.nlist import NList
+from hoomd.md.nlist import NeighborList
 from hoomd.data.parameterdicts import TypeParameterDict
 from hoomd.data.typeparam import TypeParameter
 from hoomd.data.typeconverter import (OnlyFrom, OnlyTypes, nonnegative_real)
 import hoomd.md.pair as _pair
 
-validate_nlist = OnlyTypes(NList)
+validate_nlist = OnlyTypes(NeighborList)
 
 class ModLJ(_pair.Pair):
     r"""Modified Lennard-Jones pair potential to showcase an example of a pair plugin.
 
     Args:
-        nlist (`hoomd.md.nlist.NList`): Neighbor list.
+        nlist (`hoomd.md.nlist.NeighborList`): Neighbor list.
         default_r_cut (float): Default cutoff radius :math:`[\mathrm{length}]`.
         default_r_on (float): Default turn-on radius :math:`[\mathrm{length}]`.
         mode (str): Energy shifting/smoothing mode.
@@ -108,7 +108,7 @@ class Hertzian(_pair.Pair):
     r"""Hertzian pair potential.
 
     Args:
-        nlist (`hoomd.md.nlist.NList`): Neighbor list.
+        nlist (`hoomd.md.nlist.NeighborList`): Neighbor list.
         default_r_cut (float): Default cutoff radius :math:`[\mathrm{length}]`.
         default_r_on (float): Default turn-on radius :math:`[\mathrm{length}]`.
         mode (str): Energy shifting/smoothing mode.

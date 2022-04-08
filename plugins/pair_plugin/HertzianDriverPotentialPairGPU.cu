@@ -15,7 +15,7 @@ namespace md
     {
 namespace kernel
     {
-hipError_t gpu_compute_example_forces(const pair_args_t& pair_args,
+hipError_t gpu_compute_hertzian_forces(const pair_args_t& pair_args,
                                       const EvaluatorPairHertzian::param_type* d_params)
     {
     return gpu_compute_pair_forces<EvaluatorPairHertzian>(pair_args, d_params);

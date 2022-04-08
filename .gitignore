@@ -8,6 +8,7 @@
 .venv
 __pycache__
 *.pyc
+.mypy_cache
 
 # hoomd
 .build
@@ -27,3 +28,5 @@ droplet_environment.yml
 # any analysis output
 *.npy
 *.parquet
+
+build

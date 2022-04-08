@@ -1,7 +1,11 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.9 FATAL_ERROR)
+include(ExternalProject)
 
 project (MONK LANGUAGES C CXX)
 
-set(ENABLE_GPU ON CACHE BOOL "Enable CUDA GPU" FORCE)
+# set(ENABLE_GPU ON CACHE BOOL "Enable CUDA GPU" FORCE)
 
-add_subproject(hoomd-blue)  # not currently working, use build script
+ExternalProject_Add(Eigen3 SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/extern/eigen PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/.venv)
+
+ExternalProject_Add(HOOMD SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/hoomd-blue DEPENDS Eigen3)
+# ExternalProject_Add(plugins SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/hoomd-blue)

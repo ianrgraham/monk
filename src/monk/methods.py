@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Callable, Optional
 import hoomd
 import numpy as np
 
@@ -86,3 +86,36 @@ class PastSnapshotsBuffer(hoomd.custom.Action):
     def act(self, timestep):
         snap = self._state.get_snapshot()
         self.snap_buffer.append(snap)
+
+
+"""
+I want to build a nice API for launching experiment simulations 
+"""
+
+class ForwardFlux:
+    """Forward flux sampling simulation
+    
+    TODO
+    1. method to establish the basin
+    2. apply forward flux given some operator
+        i. the operator defines whether the quantitiy is local, global, etc.
+        ii. implemented through a callback (function pointer)
+        iii. 
+    3. stop when forward flux probability or operator reaches a threshold
+
+    Since we will let the operator govern details of which particle is of interest,
+    I don't think we have to do much more within this code
+    """
+    
+    
+    def __init__(self, sim: hoomd.Simulation):
+        """Just set the simulation state, nothing else for now"""
+        self.sim = sim
+
+    @property
+    def operator(self):
+        """Callable function that determines """
+        return self._operator
+
+class IsoconfigurationalEnsemble:
+    pass

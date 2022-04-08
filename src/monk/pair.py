@@ -59,7 +59,7 @@ def KA_LJ(nlist: hoomd.md.nlist.NeighborList) -> hoomd.md.pair.Pair:
 
     return lj
 
-def KA_WCA(nlist: hoomd.md.nlist.NList) -> hoomd.md.pair.Pair:
+def KA_WCA(nlist: hoomd.md.nlist.NeighborList) -> hoomd.md.pair.Pair:
     '''Wicks-Chandler-Anderson potential
     '''
     r_cutoff = 2.5
@@ -84,7 +84,7 @@ def KA_WCA(nlist: hoomd.md.nlist.NList) -> hoomd.md.pair.Pair:
 
     return lj
 
-def KA_ModLJ(nlist: hoomd.md.nlist.NList, delta: float) -> hoomd.md.pair.Pair:
+def KA_ModLJ(nlist: hoomd.md.nlist.NeighborList, delta: float) -> hoomd.md.pair.Pair:
     '''Kob-Anderson Lennard-Jones potential with modified well width
     '''
     r_cutoff = 2.5

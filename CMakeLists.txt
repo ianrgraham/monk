@@ -5,7 +5,7 @@ project (MONK LANGUAGES C CXX)
 
 # set(ENABLE_GPU ON CACHE BOOL "Enable CUDA GPU" FORCE)
 
-ExternalProject_Add(Eigen3 SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/extern/eigen PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/.venv)
+# ExternalProject_Add(Eigen3 SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/extern/eigen PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/.venv)
 
 ExternalProject_Add(HOOMD SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/hoomd-blue DEPENDS Eigen3)
 # ExternalProject_Add(plugins SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/hoomd-blue)

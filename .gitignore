@@ -30,3 +30,6 @@ droplet_environment.yml
 *.parquet
 
 build
+
+*.gif
+*.mp4

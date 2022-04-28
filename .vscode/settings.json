@@ -62,7 +62,9 @@
         "utility": "cpp",
         "valarray": "cpp",
         "variant": "cpp",
-        "algorithm": "cpp"
+        "algorithm": "cpp",
+        "iomanip": "cpp"
     },
-    "python.linting.enabled": true
+    "python.linting.enabled": true,
+    "C_Cpp.default.cppStandard": "c++17"
 }

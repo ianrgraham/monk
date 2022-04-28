@@ -3,6 +3,7 @@ set(COMPONENT_NAME forward_flux)
 
 set(_${COMPONENT_NAME}_sources
     module.cc
+    FFSystem.cc
     )
 
 set(_${COMPONENT_NAME}_cu_sources

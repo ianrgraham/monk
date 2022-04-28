@@ -80,10 +80,10 @@ class ModLJ(_pair.Pair):
         instead of `md.pair` as we would have done in the source code.
         """
         # create the c++ mirror class
-        if not self._nlist._added:
-            self._nlist._add(self._simulation)
+        if not self.nlist._added:
+            self.nlist._add(self._simulation)
         else:
-            if self._simulation != self._nlist._simulation:
+            if self._simulation != self.nlist._simulation:
                 raise RuntimeError("{} object's neighbor list is used in a "
                                    "different simulation.".format(type(self)))
         if not self.nlist._attached:
@@ -155,10 +155,10 @@ class Hertzian(_pair.Pair):
         instead of `md.pair` as we would have done in the source code.
         """
         # create the c++ mirror class
-        if not self._nlist._added:
-            self._nlist._add(self._simulation)
+        if not self.nlist._added:
+            self.nlist._add(self._simulation)
         else:
-            if self._simulation != self._nlist._simulation:
+            if self._simulation != self.nlist._simulation:
                 raise RuntimeError("{} object's neighbor list is used in a "
                                    "different simulation.".format(type(self)))
         if not self.nlist._attached:

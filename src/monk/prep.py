@@ -151,15 +151,21 @@ def approx_euclidean_snapshot(
     snapshot.configuration.box = [L, L, Lz, 0.0, 0.0, 0.0]
     snapshot.particles.types = particle_types
     snapshot.particles.typeid = [0] * N
+    snapshot.particles.diameter = [0] * N
 
     # assign particle labels with rng
     idx = 0
     limits = np.cumsum(ratios)
     j = 0
     for i in rng.permutation(np.arange(N)):
-        snapshot.particles.typeid[i] = idx
-        if j/N*100 > limits[idx]:
+        while j/N*100 >= limits[idx]:
             idx += 1
+        snapshot.particles.typeid[i] = idx
+        snapshot.particles.diameter[i] = diams[idx]
+
         j += 1
+        
+
+
 
     return snapshot

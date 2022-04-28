@@ -59,6 +59,31 @@ def KA_LJ(nlist: hoomd.md.nlist.NeighborList) -> hoomd.md.pair.Pair:
 
     return lj
 
+
+def bi_hertz(nlist: hoomd.md.nlist.NeighborList) -> hoomd.md.pair.Pair:
+    '''Standard bidisperse hertzian potential
+    '''
+    eps_AA = 1.0
+    eps_AB = 1.0
+    eps_BB = 1.0
+    sig_AA = 1
+    sig_AB = 1.2
+    sig_BB = 1.4
+    r_on_cutoff = 0.0
+    # specify Hertzian interactions between particle pairs
+    hertz = p_pair.Hertzian(nlist)
+    hertz.params[('A', 'A')] = dict(epsilon=eps_AA, sigma=sig_AA)
+    hertz.r_cut[('A', 'A')] = sig_AA
+    hertz.r_on[('A', 'A')] = r_on_cutoff*sig_AA
+    hertz.params[('A', 'B')] = dict(epsilon=eps_AB, sigma=sig_AB)
+    hertz.r_cut[('A', 'B')] = sig_AB
+    hertz.r_on[('A', 'B')] = r_on_cutoff*sig_AB
+    hertz.params[('B', 'B')] = dict(epsilon=eps_BB, sigma=sig_BB)
+    hertz.r_cut[('B', 'B')] = sig_BB
+    hertz.r_on[('B', 'B')] = r_on_cutoff*sig_BB
+
+    return hertz
+
 def KA_WCA(nlist: hoomd.md.nlist.NeighborList) -> hoomd.md.pair.Pair:
     '''Wicks-Chandler-Anderson potential
     '''

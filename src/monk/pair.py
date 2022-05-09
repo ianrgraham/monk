@@ -59,6 +59,31 @@ def KA_LJ(nlist: hoomd.md.nlist.NeighborList) -> hoomd.md.pair.Pair:
 
     return lj
 
+def KA_LJ_DPD(nlist: hoomd.md.nlist.NeighborList, kT: float) -> hoomd.md.pair.Pair:
+    '''Kob-Anderson Lennard-Jones potential
+    '''
+    r_cutoff = 2.5
+    eps_AA = 1
+    eps_AB = 1.5
+    eps_BB = 0.5
+    sig_AA = 1
+    sig_AB = 0.8
+    sig_BB = 0.88
+    r_on_cutoff = 0.0
+    # specify Lennard-Jones interactions between particle pairs
+    lj = hoomd.md.pair.DPDLJ(nlist=nlist, kT=kT, mode="shift")
+    lj.params[('A', 'A')] = dict(epsilon=eps_AA, sigma=sig_AA, gamma=4.5)
+    lj.r_cut[('A', 'A')] = r_cutoff*sig_AA
+    # lj.r_on[('A', 'A')] = r_on_cutoff*sig_AA
+    lj.params[('A', 'B')] = dict(epsilon=eps_AB, sigma=sig_AB, gamma=4.5)
+    lj.r_cut[('A', 'B')] = r_cutoff*sig_AB
+    # lj.r_on[('A', 'B')] = r_on_cutoff*sig_AB
+    lj.params[('B', 'B')] = dict(epsilon=eps_BB, sigma=sig_BB, gamma=4.5)
+    lj.r_cut[('B', 'B')] = r_cutoff*sig_BB
+    # lj.r_on[('B', 'B')] = r_on_cutoff*sig_BB
+
+    return lj
+
 
 def bi_hertz(nlist: hoomd.md.nlist.NeighborList) -> hoomd.md.pair.Pair:
     '''Standard bidisperse hertzian potential

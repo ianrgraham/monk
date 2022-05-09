@@ -14,7 +14,8 @@ Scalar propensity(uint32_t pid, uint32_t mapped_pid, SnapshotParticleData<Scalar
     auto pid_pos = ArrayHandle<Scalar4>(cur_pdata->getPositions(),
         access_location::host, access_mode::read).data[pid];
     auto cur_pos = vec3<Scalar>(pid_pos.x, pid_pos.y, pid_pos.z);
-    vec3<Scalar> pos_diff = cur_pos - ref_snap.pos[pid];
+    auto box = cur_pdata->getBox();
+    vec3<Scalar> pos_diff = box.minImage(cur_pos - ref_snap.pos[pid]);
     return fast::sqrt(dot(pos_diff, pos_diff));
     }
 
@@ -87,7 +88,7 @@ std::optional<std::shared_ptr<SnapshotSystemData<Scalar>>> FFSystem::runFFTrial(
 
         m_cur_tstep++;
         }
-
+        
     }
 
 std::vector<std::shared_ptr<SnapshotSystemData<Scalar>>> FFSystem::sampleBasinForwardFluxes(uint64_t nsteps)
@@ -153,6 +154,11 @@ std::vector<std::shared_ptr<SnapshotSystemData<Scalar>>> FFSystem::sampleBasinFo
         m_cur_tstep++;
         }
 
+    if (PyErr_CheckSignals() != 0)
+        {
+        throw pybind11::error_already_set();
+        }
+
     m_cur_tstep = old_time;
     
     return result;
@@ -197,6 +203,7 @@ std::vector<Scalar> FFSystem::sampleBasin(uint64_t nsteps, uint64_t period)
     result.reserve(n_writes);
 
     auto old_time = m_cur_tstep;
+    // m_initial_time = m_clk.getTime();
 
     m_sysdef->getParticleData()->setFlags(determineFlags(m_cur_tstep));
 
@@ -226,6 +233,13 @@ std::vector<Scalar> FFSystem::sampleBasin(uint64_t nsteps, uint64_t period)
         simpleRun(period);
         result.push_back(computeOrderParameter());
     }
+
+    // updateTPS();
+
+    // if (PyErr_CheckSignals() != 0)
+    //     {
+    //     throw pybind11::error_already_set();
+    //     }
 
     m_cur_tstep = old_time;
 

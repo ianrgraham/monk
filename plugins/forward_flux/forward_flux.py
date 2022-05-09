@@ -1,16 +1,5 @@
-from ctypes import Union
-# from msilib.schema import Error
-from typing import Callable, Optional
-from hoomd.md import _md
+from typing import Optional
 import hoomd
-from hoomd.md.methods import Method
-from hoomd.operation import _HOOMDBaseObject
-from hoomd.data.parameterdicts import ParameterDict, TypeParameterDict
-from hoomd.data.typeparam import TypeParameter
-from hoomd.data.typeconverter import OnlyTypes, OnlyIf, to_type_converter
-from hoomd.filter import ParticleFilter
-from hoomd.variant import Variant
-from collections.abc import Sequence
 
 from numpy import isin
 import numpy as np
@@ -21,7 +10,10 @@ class ForwardFluxSimulation(hoomd.Simulation):
     def __init__(self, device, pid, seed=None, fire_kwargs=None):
         super().__init__(device, seed=seed)
         if fire_kwargs is None:
-            self.fire_kwargs = {"dt": 1e-2}
+            self.fire_kwargs = {"dt": 1e-2,
+                                "force_tol":1e-2,
+                                "angmom_tol":1e-2,
+                                "energy_tol":1e-7}
         elif isinstance(fire_kwargs, dict) and "dt" in fire_kwargs:
             self.fire_kwargs = fire_kwargs
         else:
@@ -50,14 +42,14 @@ class ForwardFluxSimulation(hoomd.Simulation):
 
         self._init_communicator()
 
-    def sample_basin(self, steps: int, period: int, thermalize: Optional[int] = None):
+    def sample_basin(self, steps: int, period: int, thermalize: Optional[int] = None, override_fire=None):
         
         self._assert_ff_state()
 
         # quench to the inherent structure
-        self._run_fire()
+        self._run_fire(fire_kwargs=override_fire)
         self._ref_snap = self.state.get_snapshot()  # set python snapshot (in case)
-        self._cpp_sys.setRefSnapFromPython(self._ref_snap)  # set c++ snapshot for fast processing
+        self._cpp_sys.setRefSnapFromPython(self._ref_snap._cpp_obj)  # set c++ snapshot for fast processing
 
         # possibly thermalize system
         if thermalize is not None:
@@ -89,7 +81,7 @@ class ForwardFluxSimulation(hoomd.Simulation):
         if self._ref_snap is None:
             raise RuntimeError("The reference snapshot for the basin is not set")
         else:
-            self._cpp_sys.setRefSnapFromPython(self._ref_snap)
+            self._cpp_sys.setRefSnapFromPython(self._ref_snap._cpp_obj)
 
 
     def _assert_langevin(self):
@@ -99,37 +91,33 @@ class ForwardFluxSimulation(hoomd.Simulation):
         methods = integrator.methods
         assert len(methods) == 1
         langevin = methods[0]
-        assert isinstance(langevin, hoomd.md.methods.Langevin)
+        # assert isinstance(langevin, hoomd.md.methods.Langevin)
         return integrator, langevin, integrator.forces
 
-    def _run_fire(self):
+    def _run_fire(self, fire_kwargs=None):
 
         # get integrator and associated data
         integrator, langevin, forces = self._assert_langevin()
-        
-        # integrator.methods.clear()
-        integrator.forces.clear()
-        self.operations.integrator = None
-        
 
         # build minimizer
-        fire = hoomd.md.minimize.FIRE(**self.fire_kwargs)
+        if fire_kwargs is not None:
+            fire = hoomd.md.minimize.FIRE(fire_kwargs)
+        else:
+            fire = hoomd.md.minimize.FIRE(**self.fire_kwargs)
         nve = hoomd.md.methods.NVE(hoomd.filter.All())
         fire.methods = [nve]
-        fire.forces = forces
+        fire.forces = [forces.pop() for _ in range(len(forces))]
 
         self.operations.integrator = fire
 
-        while(not fire.converged()):
+        while not fire.converged:
             self.run(self.FIRE_STEPS)
 
-        del fire
-        del nve
-
-        # reset the old integrator
-        # integrator.methods = [langevin]
-        integrator.forces = forces
+        integrator.forces = [fire.forces.pop() for _ in range(len(fire.forces))]
         self.operations.integrator = integrator
+
+        del nve
+        del fire
 
     def _assert_ff_state(self):
 

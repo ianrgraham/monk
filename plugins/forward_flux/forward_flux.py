@@ -132,17 +132,17 @@ class ForwardFluxSimulation(hoomd.Simulation):
         #     raise RuntimeError('Cannot run before basin has been established.')
         
         # warn about operations that will not be run during FFS
-        if len(self.operations.updaters) != 0:
-            raise Warning("There are updaters loaded into the simulation, \
-                They will not be run during forward flux sampling!")
+        # if len(self.operations.updaters) != 0:
+        #     raise Warning("There are updaters loaded into the simulation, \
+        #         They will not be run during forward flux sampling!")
 
-        if len(self.operations.computes) != 0:
-            raise Warning("There are computes loaded into the simulation, \
-                They will not be run during forward flux sampling!")
+        # if len(self.operations.computes) != 0:
+        #     raise Warning("There are computes loaded into the simulation, \
+        #         They will not be run during forward flux sampling!")
 
-        if len(self.operations.writers) != 0:
-            raise Warning("There are writers loaded into the simulation, \
-                They will not be run during forward flux sampling!")
+        # if len(self.operations.writers) != 0:
+        #     raise Warning("There are writers loaded into the simulation, \
+        #         They will not be run during forward flux sampling!")
 
     def thermalize_state(self, kT):
         self.state.thermalize_particle_momenta(hoomd.filter.All(), kT)

@@ -45,6 +45,10 @@ class PYBIND11_EXPORT FFSystem: public System
 
     void setBasinBarrier(const Scalar barrier);
 
+    void setPID(uint32_t pid);
+
+    uint32_t getMappedPID();
+
     private:
 
     //! Order parameter that is applied during FF calculation
@@ -52,8 +56,8 @@ class PYBIND11_EXPORT FFSystem: public System
     Scalar (*m_order_param)(uint32_t, uint32_t, SnapshotParticleData<Scalar>&, ParticleData*);
     uint32_t m_pid;
     uint32_t m_mapped_pid;
-    SnapshotParticleData<Scalar> m_ref_snap;
-    std::map<unsigned int, unsigned int> m_ref_map;
+    std::optional<SnapshotParticleData<Scalar>> m_ref_snap;
+    std::optional<std::map<unsigned int, unsigned int>> m_ref_map;
     Scalar m_basin_barrier;
 
     Scalar computeOrderParameter();

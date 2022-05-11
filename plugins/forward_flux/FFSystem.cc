@@ -57,6 +57,15 @@ std::optional<std::shared_ptr<SnapshotSystemData<Scalar>>> FFSystem::runFFTrial(
                 tuner->update(m_cur_tstep);
             }
 
+        for (auto& updater : m_updaters)
+            {
+            if ((*updater->getTrigger())(m_cur_tstep))
+                {
+                updater->update(m_cur_tstep);
+                m_update_group_dof_next_step |= updater->mayChangeDegreesOfFreedom(m_cur_tstep);
+                }
+            }
+
         if (m_update_group_dof_next_step)
             {
             updateGroupDOF();
@@ -87,7 +96,23 @@ std::optional<std::shared_ptr<SnapshotSystemData<Scalar>>> FFSystem::runFFTrial(
             }
 
         m_cur_tstep++;
+
+        // execute analyzers after incrementing the step counter
+        for (auto& analyzer : m_analyzers)
+            {
+            if ((*analyzer->getTrigger())(m_cur_tstep))
+                analyzer->analyze(m_cur_tstep);
+            }
+
         }
+
+        // propagate Python exceptions related to signals
+    if (PyErr_CheckSignals() != 0)
+        {
+        throw pybind11::error_already_set();
+        }
+
+    m_cur_tstep = old_time;
         
     }
 
@@ -176,6 +201,16 @@ void FFSystem::simpleRun(uint64_t nsteps)
                 tuner->update(m_cur_tstep);
             }
 
+        // execute updaters
+        for (auto& updater : m_updaters)
+            {
+            if ((*updater->getTrigger())(m_cur_tstep))
+                {
+                updater->update(m_cur_tstep);
+                m_update_group_dof_next_step |= updater->mayChangeDegreesOfFreedom(m_cur_tstep);
+                }
+            }
+
         if (m_update_group_dof_next_step)
             {
             updateGroupDOF();
@@ -192,6 +227,13 @@ void FFSystem::simpleRun(uint64_t nsteps)
             m_integrator->update(m_cur_tstep);
 
         m_cur_tstep++;
+
+        // execute analyzers after incrementing the step counter
+        for (auto& analyzer : m_analyzers)
+            {
+            if ((*analyzer->getTrigger())(m_cur_tstep))
+                analyzer->analyze(m_cur_tstep);
+            }
 
         }
     }
@@ -236,10 +278,10 @@ std::vector<Scalar> FFSystem::sampleBasin(uint64_t nsteps, uint64_t period)
 
     // updateTPS();
 
-    // if (PyErr_CheckSignals() != 0)
-    //     {
-    //     throw pybind11::error_already_set();
-    //     }
+    if (PyErr_CheckSignals() != 0)
+        {
+        throw pybind11::error_already_set();
+        }
 
     m_cur_tstep = old_time;
 
@@ -250,15 +292,20 @@ std::vector<Scalar> FFSystem::sampleBasin(uint64_t nsteps, uint64_t period)
 
 void FFSystem::setRefSnapshot()
     {
-    m_ref_map = m_sysdef->getParticleData()->takeSnapshot(m_ref_snap);
-    m_mapped_pid = m_ref_map[m_pid];
+    m_ref_map = m_sysdef->getParticleData()->takeSnapshot(*m_ref_snap);
+    m_mapped_pid = m_ref_map->at(m_pid);
+    }
+
+uint32_t FFSystem::getMappedPID()
+    {
+    return m_mapped_pid;
     }
 
 void FFSystem::setRefSnapFromPython(std::shared_ptr<SnapshotSystemData<Scalar>> snapshot)
     {
     m_ref_snap = snapshot->particle_data;
     m_ref_map = snapshot->map;
-    m_mapped_pid = m_ref_map[m_pid];
+    m_mapped_pid = m_ref_map->at(m_pid);
     }
 
 void FFSystem::setBasinBarrier(const Scalar barrier)
@@ -269,7 +316,15 @@ void FFSystem::setBasinBarrier(const Scalar barrier)
 Scalar FFSystem::computeOrderParameter()
     {
     auto cur_pdata = m_sysdef->getParticleData();
-    return m_order_param(m_pid, m_mapped_pid, m_ref_snap, cur_pdata.get());
+    return m_order_param(m_pid, m_mapped_pid, *m_ref_snap, cur_pdata.get());
+    }
+
+void FFSystem::setPID(uint32_t pid)
+    {
+    m_pid = pid;
+    if (m_ref_map) {
+        m_mapped_pid = m_ref_map->at(m_pid);
+    }
     }
 
 namespace detail
@@ -286,24 +341,27 @@ void export_FFSystem(pybind11::module& m)
         .def("setRefSnapFromPython", &FFSystem::setRefSnapFromPython)
         .def("sampleBasinForwardFluxes", &FFSystem::sampleBasinForwardFluxes)
 
-        .def("setIntegrator", &FFSystem::setIntegrator)
-        .def("getIntegrator", &FFSystem::getIntegrator)
+        .def("setPID", &FFSystem::setPID)
+        .def("getMappedPID", &FFSystem::getMappedPID)
 
-        .def("setAutotunerParams", &FFSystem::setAutotunerParams)
-        .def("run", &FFSystem::run)
+        // .def("setIntegrator", &FFSystem::setIntegrator)
+        // .def("getIntegrator", &FFSystem::getIntegrator)
 
-        .def("getLastTPS", &FFSystem::getLastTPS)
-        .def("getCurrentTimeStep", &FFSystem::getCurrentTimeStep)
-        .def("setPressureFlag", &FFSystem::setPressureFlag)
-        .def("getPressureFlag", &FFSystem::getPressureFlag)
-        .def_property_readonly("walltime", &FFSystem::getCurrentWalltime)
-        .def_property_readonly("final_timestep", &FFSystem::getEndStep)
-        .def_property_readonly("analyzers", &FFSystem::getAnalyzers)
-        .def_property_readonly("updaters", &FFSystem::getUpdaters)
-        .def_property_readonly("tuners", &FFSystem::getTuners)
-        .def_property_readonly("computes", &FFSystem::getComputes)
+        // .def("setAutotunerParams", &FFSystem::setAutotunerParams)
+        // .def("run", &FFSystem::run)
+
+        // .def("getLastTPS", &FFSystem::getLastTPS)
+        // .def("getCurrentTimeStep", &FFSystem::getCurrentTimeStep)
+        // .def("setPressureFlag", &FFSystem::setPressureFlag)
+        // .def("getPressureFlag", &FFSystem::getPressureFlag)
+        // .def_property_readonly("walltime", &FFSystem::getCurrentWalltime)
+        // .def_property_readonly("final_timestep", &FFSystem::getEndStep)
+        // .def_property_readonly("analyzers", &FFSystem::getAnalyzers)
+        // .def_property_readonly("updaters", &FFSystem::getUpdaters)
+        // .def_property_readonly("tuners", &FFSystem::getTuners)
+        // .def_property_readonly("computes", &FFSystem::getComputes)
 #ifdef ENABLE_MPI
-        .def("setCommunicator", &FFSystem::setCommunicator)
+        // .def("setCommunicator", &FFSystem::setCommunicator)
 #endif
         ;
     }

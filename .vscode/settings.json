@@ -63,7 +63,17 @@
         "valarray": "cpp",
         "variant": "cpp",
         "algorithm": "cpp",
-        "iomanip": "cpp"
+        "iomanip": "cpp",
+        "csignal": "cpp",
+        "cstdarg": "cpp",
+        "strstream": "cpp",
+        "cinttypes": "cpp",
+        "codecvt": "cpp",
+        "iterator": "cpp",
+        "regex": "cpp",
+        "future": "cpp",
+        "mutex": "cpp",
+        "cfenv": "cpp"
     },
     "python.linting.enabled": true,
     "C_Cpp.default.cppStandard": "c++17"

@@ -1,9 +1,21 @@
 from typing import Optional
+from typing_extensions import Self
+import freud.box
 import hoomd
 
 from numpy import isin
 import numpy as np
+import numpy.linalg as la
+from numba import njit
+
 from hoomd.forward_flux import _forward_flux
+from hoomd import _hoomd
+from hoomd.data.typeconverter import NDArrayValidator
+from hoomd.data.parameterdicts import ParameterDict
+
+from hoomd.custom import Action
+from hoomd.update import CustomUpdater
+from hoomd.operation import Updater
 
 class ForwardFluxSimulation(hoomd.Simulation):
 
@@ -20,14 +32,9 @@ class ForwardFluxSimulation(hoomd.Simulation):
             raise ValueError("fire_kwargs")
 
         self.FIRE_STEPS = 100
-        # self._basin_result = None
         self._ref_snap = None
         self._basin_barrier = None
         self._pid = pid
-
-    # @property
-    # def op(self, op: Callable[..., float]):
-    #     self._op = op
 
     def _init_system(self, step):
         """Initialize the system State.
@@ -42,12 +49,12 @@ class ForwardFluxSimulation(hoomd.Simulation):
 
         self._init_communicator()
 
-    def sample_basin(self, steps: int, period: int, thermalize: Optional[int] = None, override_fire=None):
+    def sample_basin(self, steps: int, period: int, thermalize: Optional[int] = None, override_fire=None, forces=None):
         
         self._assert_ff_state()
 
         # quench to the inherent structure
-        self._run_fire(fire_kwargs=override_fire)
+        self._run_fire(fire_kwargs=override_fire, sup_forces=forces)
         self._ref_snap = self.state.get_snapshot()  # set python snapshot (in case)
         self._cpp_sys.setRefSnapFromPython(self._ref_snap._cpp_obj)  # set c++ snapshot for fast processing
 
@@ -94,7 +101,7 @@ class ForwardFluxSimulation(hoomd.Simulation):
         # assert isinstance(langevin, hoomd.md.methods.Langevin)
         return integrator, langevin, integrator.forces
 
-    def _run_fire(self, fire_kwargs=None):
+    def _run_fire(self, fire_kwargs=None, sup_forces=None):
 
         # get integrator and associated data
         integrator, langevin, forces = self._assert_langevin()
@@ -106,15 +113,22 @@ class ForwardFluxSimulation(hoomd.Simulation):
             fire = hoomd.md.minimize.FIRE(**self.fire_kwargs)
         nve = hoomd.md.methods.NVE(hoomd.filter.All())
         fire.methods = [nve]
-        fire.forces = [forces.pop() for _ in range(len(forces))]
+        if sup_forces is None:
+            fire.forces = [forces.pop() for _ in range(len(forces))]
+        else:
+            fire.forces = sup_forces
 
         self.operations.integrator = fire
 
         while not fire.converged:
             self.run(self.FIRE_STEPS)
 
-        integrator.forces = [fire.forces.pop() for _ in range(len(fire.forces))]
+        if sup_forces is None:  
+            integrator.forces = [fire.forces.pop() for _ in range(len(fire.forces))]
         self.operations.integrator = integrator
+
+        with self._state.cpu_local_snapshot as data:
+            data.particles.velocity[:] = 0.0
 
         del nve
         del fire
@@ -128,26 +142,13 @@ class ForwardFluxSimulation(hoomd.Simulation):
                 "Cannot call run inside of a local snapshot context manager.")
         if not self.operations._scheduled:
             self.operations._schedule()
-        # if not hasattr(self, '_basin_result'):
-        #     raise RuntimeError('Cannot run before basin has been established.')
-        
-        # warn about operations that will not be run during FFS
-        # if len(self.operations.updaters) != 0:
-        #     raise Warning("There are updaters loaded into the simulation, \
-        #         They will not be run during forward flux sampling!")
-
-        # if len(self.operations.computes) != 0:
-        #     raise Warning("There are computes loaded into the simulation, \
-        #         They will not be run during forward flux sampling!")
-
-        # if len(self.operations.writers) != 0:
-        #     raise Warning("There are writers loaded into the simulation, \
-        #         They will not be run during forward flux sampling!")
 
     def thermalize_state(self, kT):
         self.state.thermalize_particle_momenta(hoomd.filter.All(), kT)
 
-    def run_ff(self, basin_steps, trials=2000, thresh=0.99, barrier_step=0.01, thermalize: Optional[int] = None):
+    def run_ff(self, basin_steps, trials=2000, thresh=0.95, barrier_step=0.01, op_thresh=None, thermalize: Optional[int] = None):
+
+        old_seed = self.seed
         
         self._assert_ff_state()
 
@@ -163,12 +164,17 @@ class ForwardFluxSimulation(hoomd.Simulation):
         
         a_crossings = self._cpp_sys.sampleBasinForwardFluxes(basin_steps)
 
+        print("Crossing:", len(a_crossings))
+
         base_rate = len(a_crossings)/(basin_steps*dt)
 
         barriers = [self.basin_barrier + barrier_step]
 
         k_abs = []
         for state in a_crossings:
+
+            print("state:", len(k_abs))
+
 
             last_trial_set = [state]
             rate = 1.0
@@ -180,12 +186,16 @@ class ForwardFluxSimulation(hoomd.Simulation):
                 if idx >= len(barriers):
                     barriers.append(barriers[idx-1] + barrier_step)
                 barrier = barriers[idx]
+
+                # print("    bar:", barrier)
                 
                 all_passed_trials = []
                 k_trials = trials//len(last_trial_set)
                 for new_state in last_trial_set:
-                    for _ in range(k_trials):
+                    for k in range(k_trials):
+                        self.seed += 1
                         opt_snap = self._cpp_sys.runFFTrial(barrier, new_state)
+                        print(k, opt_snap)
                         if opt_snap is not None:
                             all_passed_trials.append(opt_snap)
 
@@ -194,17 +204,48 @@ class ForwardFluxSimulation(hoomd.Simulation):
                 prod_trials *= float(k_trials)
 
                 rate = len(all_passed_trials)/prod_trials
+
+                print(len(last_trial_set), last_rate)
                 
                 if len(last_trial_set) == 0:
                     break
-                elif last_rate >= thresh:
+                elif last_rate >= thresh and barrier >= op_thresh:
                     break
 
                 idx += 1
             
             k_abs.append(rate)
 
+        self.seed = old_seed
+
         return base_rate*np.mean(k_abs)
-                
 
 
+@njit
+def _diff_with_rtag(ref_pos, pos, rtags):
+    out = np.zeros_like(pos)
+    n = len(rtags)
+    for tag_idx in range(n):
+        idx = rtags[tag_idx]
+        out[idx] = pos[idx] - ref_pos[tag_idx]
+    return out
+
+class ZeroDrift(Action):
+
+    def __init__(self, reference_positions, box):
+        self._ref_pos = reference_positions
+        self._box = freud.box.Box.from_box(box)
+        self._imgs = np.array([0.0, 0.0, 0.0])
+
+    @classmethod
+    def from_state(cls, state: hoomd.State):
+        return cls(state.get_snapshot().particles.position, state.box)
+
+    def act(self, timestep):
+        with self._state.cpu_local_snapshot as data:
+            pos = data.particles.position._coerce_to_ndarray()
+            rtags = data.particles.rtag._coerce_to_ndarray()
+            diff = self._box.unwrap(_diff_with_rtag(self._ref_pos, pos, rtags), self._imgs)
+            dx = np.mean(diff, axis=0)
+            # print(dx)
+            data.particles.position = self._box.unwrap(data.particles.position - dx, self._imgs)

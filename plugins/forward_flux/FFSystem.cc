@@ -9,13 +9,24 @@ const uint64_t MAX_STEPS = 1000000;
 namespace hoomd
     {
 
+std::optional<int> optionalInt(int x, bool b) {
+    if (b) {
+        return x;
+    }
+    else {
+        return {};
+    }
+}
+
 Scalar propensity(uint32_t pid, uint32_t mapped_pid, SnapshotParticleData<Scalar>& ref_snap, ParticleData* cur_pdata)
     {
-    auto pid_pos = ArrayHandle<Scalar4>(cur_pdata->getPositions(),
+    auto idx = ArrayHandle<unsigned int>(cur_pdata->getRTags(),
         access_location::host, access_mode::read).data[pid];
-    auto cur_pos = vec3<Scalar>(pid_pos.x, pid_pos.y, pid_pos.z);
+    auto local_pos = ArrayHandle<Scalar4>(cur_pdata->getPositions(),
+        access_location::host, access_mode::read).data[idx];
+    auto cur_pos = vec3<Scalar>(local_pos.x, local_pos.y, local_pos.z);
     auto box = cur_pdata->getBox();
-    vec3<Scalar> pos_diff = box.minImage(cur_pos - ref_snap.pos[pid]);
+    vec3<Scalar> pos_diff = box.minImage(cur_pos - ref_snap.pos[mapped_pid]);
     return fast::sqrt(dot(pos_diff, pos_diff));
     }
 
@@ -32,6 +43,9 @@ std::optional<std::shared_ptr<SnapshotSystemData<Scalar>>> FFSystem::runFFTrial(
 
     m_sysdef->getParticleData()->setFlags(determineFlags(m_cur_tstep));
     resetStats();
+
+    auto op = computeOrderParameter();
+    // std::cout << "Starting op: " << op << std::endl; 
     
 #ifdef ENABLE_MPI
     if (m_sysdef->isDomainDecomposed())
@@ -49,8 +63,26 @@ std::optional<std::shared_ptr<SnapshotSystemData<Scalar>>> FFSystem::runFFTrial(
         m_integrator->prepRun(m_cur_tstep);
         }
 
+    auto idx = 0;
     while (true)
         {
+
+        if (op < m_basin_barrier)
+            {
+            m_cur_tstep = old_time;
+            // std::cout << "  Failed @ idx" << idx << std::endl;
+            // std::cout << "    Ops: " << op << "<" << m_basin_barrier << std::endl;
+            return {};
+            }
+        else if (op >= barrier)
+            {
+            m_cur_tstep = old_time;
+            auto new_snap = m_sysdef->takeSnapshot<Scalar>();
+            std::cout << "  Success @ idx" << idx << std::endl;
+            std::cout << "    Ops: " << op << ">=" << barrier << std::endl;
+            return new_snap;
+            }
+
         for (auto& tuner : m_tuners)
             {
             if ((*tuner->getTrigger())(m_cur_tstep))
@@ -81,21 +113,10 @@ std::optional<std::shared_ptr<SnapshotSystemData<Scalar>>> FFSystem::runFFTrial(
         if (m_integrator)
             m_integrator->update(m_cur_tstep);
 
-        auto op = computeOrderParameter();
-
-        if (op < m_basin_barrier)
-            {
-            m_cur_tstep = old_time;
-            return {};
-            }
-        else if (op >= barrier)
-            {
-            m_cur_tstep = old_time;
-            auto new_snap = m_sysdef->takeSnapshot<Scalar>();
-            return new_snap;
-            }
+        op = computeOrderParameter();
 
         m_cur_tstep++;
+        idx++;
 
         // execute analyzers after incrementing the step counter
         for (auto& analyzer : m_analyzers)
@@ -141,7 +162,7 @@ std::vector<std::shared_ptr<SnapshotSystemData<Scalar>>> FFSystem::sampleBasinFo
         m_integrator->prepRun(m_cur_tstep);
         }
 
-    auto last_op = computeOrderParameter();;
+    auto last_op = computeOrderParameter();
 
     for (int i = 0; i < nsteps; i++)
         {
@@ -331,6 +352,7 @@ namespace detail
     {
 void export_FFSystem(pybind11::module& m)
     {
+    m.def("optionalInt", &optionalInt);
     pybind11::class_<FFSystem, System, std::shared_ptr<FFSystem>>(m, "FFSystem")
         .def(pybind11::init<std::shared_ptr<SystemDefinition>, uint64_t, uint32_t>())
 

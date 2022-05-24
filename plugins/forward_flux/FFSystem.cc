@@ -1,9 +1,6 @@
 
 #include "FFSystem.h"
 
-// #include <pybind11/cast.h>
-// #include <pybind11/stl_bind.h>
-
 const uint64_t MAX_STEPS = 1000000;
 
 namespace hoomd
@@ -35,16 +32,18 @@ FFSystem::FFSystem(std::shared_ptr<SystemDefinition> sysdef, uint64_t initial_ts
     {
     }
 
-std::optional<std::shared_ptr<SnapshotSystemData<Scalar>>> FFSystem::runFFTrial(const Scalar barrier, const std::shared_ptr<SnapshotSystemData<Scalar>> snapshot)
+std::pair<std::optional<std::shared_ptr<SnapshotSystemData<Scalar>>>, Scalar> FFSystem::runFFTrial(const Scalar barrier, const std::shared_ptr<SnapshotSystemData<Scalar>> snapshot, bool reset_tstep)
     {
 
     m_sysdef->initializeFromSnapshot(snapshot);
+    updateGroupDOFOnNextStep();
     auto old_time = m_cur_tstep;
 
     m_sysdef->getParticleData()->setFlags(determineFlags(m_cur_tstep));
     resetStats();
 
     auto op = computeOrderParameter();
+    auto max_op = op;
     // std::cout << "Starting op: " << op << std::endl; 
     
 #ifdef ENABLE_MPI
@@ -66,21 +65,27 @@ std::optional<std::shared_ptr<SnapshotSystemData<Scalar>>> FFSystem::runFFTrial(
     auto idx = 0;
     while (true)
         {
-
+        // std::cout << "Loop idx: " << idx << ". Op: " << computeOrderParameter() << std::endl; 
         if (op < m_basin_barrier)
             {
-            m_cur_tstep = old_time;
+            if (reset_tstep)
+                {
+                m_cur_tstep = old_time;
+                }
             // std::cout << "  Failed @ idx" << idx << std::endl;
             // std::cout << "    Ops: " << op << "<" << m_basin_barrier << std::endl;
-            return {};
+            return {{}, max_op};
             }
         else if (op >= barrier)
             {
-            m_cur_tstep = old_time;
+            if (reset_tstep)
+                {
+                m_cur_tstep = old_time;
+                }
             auto new_snap = m_sysdef->takeSnapshot<Scalar>();
-            std::cout << "  Success @ idx" << idx << std::endl;
-            std::cout << "    Ops: " << op << ">=" << barrier << std::endl;
-            return new_snap;
+            // std::cout << "  Success @ idx" << idx << std::endl;
+            // std::cout << "    Ops: " << op << ">=" << barrier << std::endl;
+            return {new_snap, max_op};
             }
 
         for (auto& tuner : m_tuners)
@@ -98,6 +103,8 @@ std::optional<std::shared_ptr<SnapshotSystemData<Scalar>>> FFSystem::runFFTrial(
                 }
             }
 
+        // std::cout << "Update idx: " << idx << ". Op: " << computeOrderParameter() << std::endl; 
+
         if (m_update_group_dof_next_step)
             {
             updateGroupDOF();
@@ -111,9 +118,14 @@ std::optional<std::shared_ptr<SnapshotSystemData<Scalar>>> FFSystem::runFFTrial(
 
         // execute the integrator
         if (m_integrator)
-            m_integrator->update(m_cur_tstep);
+            m_integrator->update(rand());
+
+        // std::cout << "Integration idx: " << idx << ". Op: " << computeOrderParameter() << std::endl; 
 
         op = computeOrderParameter();
+        if (op > max_op) {
+            max_op = op;
+        }
 
         m_cur_tstep++;
         idx++;
@@ -125,16 +137,14 @@ std::optional<std::shared_ptr<SnapshotSystemData<Scalar>>> FFSystem::runFFTrial(
                 analyzer->analyze(m_cur_tstep);
             }
 
-        }
-
         // propagate Python exceptions related to signals
-    if (PyErr_CheckSignals() != 0)
-        {
-        throw pybind11::error_already_set();
+        if (PyErr_CheckSignals() != 0)
+            {
+            throw pybind11::error_already_set();
+            }
+
         }
 
-    m_cur_tstep = old_time;
-        
     }
 
 std::vector<std::shared_ptr<SnapshotSystemData<Scalar>>> FFSystem::sampleBasinForwardFluxes(uint64_t nsteps)
@@ -172,6 +182,15 @@ std::vector<std::shared_ptr<SnapshotSystemData<Scalar>>> FFSystem::sampleBasinFo
                 tuner->update(m_cur_tstep);
             }
 
+        for (auto& updater : m_updaters)
+            {
+            if ((*updater->getTrigger())(m_cur_tstep))
+                {
+                updater->update(m_cur_tstep);
+                m_update_group_dof_next_step |= updater->mayChangeDegreesOfFreedom(m_cur_tstep);
+                }
+            }
+
         if (m_update_group_dof_next_step)
             {
             updateGroupDOF();
@@ -205,7 +224,7 @@ std::vector<std::shared_ptr<SnapshotSystemData<Scalar>>> FFSystem::sampleBasinFo
         throw pybind11::error_already_set();
         }
 
-    m_cur_tstep = old_time;
+    // m_cur_tstep = old_time;
     
     return result;
     }
@@ -304,7 +323,7 @@ std::vector<Scalar> FFSystem::sampleBasin(uint64_t nsteps, uint64_t period)
         throw pybind11::error_already_set();
         }
 
-    m_cur_tstep = old_time;
+    // m_cur_tstep = old_time;
 
     return result;
     
@@ -365,26 +384,6 @@ void export_FFSystem(pybind11::module& m)
 
         .def("setPID", &FFSystem::setPID)
         .def("getMappedPID", &FFSystem::getMappedPID)
-
-        // .def("setIntegrator", &FFSystem::setIntegrator)
-        // .def("getIntegrator", &FFSystem::getIntegrator)
-
-        // .def("setAutotunerParams", &FFSystem::setAutotunerParams)
-        // .def("run", &FFSystem::run)
-
-        // .def("getLastTPS", &FFSystem::getLastTPS)
-        // .def("getCurrentTimeStep", &FFSystem::getCurrentTimeStep)
-        // .def("setPressureFlag", &FFSystem::setPressureFlag)
-        // .def("getPressureFlag", &FFSystem::getPressureFlag)
-        // .def_property_readonly("walltime", &FFSystem::getCurrentWalltime)
-        // .def_property_readonly("final_timestep", &FFSystem::getEndStep)
-        // .def_property_readonly("analyzers", &FFSystem::getAnalyzers)
-        // .def_property_readonly("updaters", &FFSystem::getUpdaters)
-        // .def_property_readonly("tuners", &FFSystem::getTuners)
-        // .def_property_readonly("computes", &FFSystem::getComputes)
-#ifdef ENABLE_MPI
-        // .def("setCommunicator", &FFSystem::setCommunicator)
-#endif
         ;
     }
 

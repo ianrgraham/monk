@@ -8,7 +8,7 @@
 #ifndef __FF_SYSTEM_H__
 #define __FF_SYSTEM_H__
 
-/*! \file ff_system.h
+/*! \file FFSystem.h
     \brief Declares the Forward Flux System class and associated helper classes
 */
 
@@ -32,8 +32,11 @@ class PYBIND11_EXPORT FFSystem: public System
     //! Constructor
     FFSystem(std::shared_ptr<SystemDefinition> sysdef, uint64_t initial_tstep, uint32_t pid);
 
-    //! Run the forward flux calculation segment, until the op
-    std::optional<std::shared_ptr<SnapshotSystemData<Scalar>>> runFFTrial(const Scalar barrier, const std::shared_ptr<SnapshotSystemData<Scalar>> snapshot);
+    //! Run the forward flux calculation segment, until the op evaluates
+    std::pair<std::optional<std::shared_ptr<SnapshotSystemData<Scalar>>>, Scalar> runFFTrial(
+        const Scalar barrier,
+        const std::shared_ptr<SnapshotSystemData<Scalar>> snapshot,
+        bool reset_tstep);
 
     std::vector<Scalar> sampleBasin(uint64_t nsteps, uint64_t period);
 

@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional, Tuple
 from typing_extensions import Self
 import freud.box
 import hoomd
@@ -18,6 +18,22 @@ from hoomd.update import CustomUpdater
 from hoomd.operation import Updater
 
 class ForwardFluxSimulation(hoomd.Simulation):
+    """Simulation that implements forward flux calculations
+    
+    Args:
+        device (`hoomd.device.Device`): Device to execute the simulation.
+        pid (int): Particle ID which will be appied during FFS calculations.
+        seed (int): Random number seed.
+        fire_kwargs (dict): Dictionary of parameters applied when quenching the
+        system to it's inherint structure.
+
+    `seed` sets the seed for the random number generator used by all operations
+    added to this `Simulation`.
+
+    Newly initialized `Simulation` objects have no state. Call
+    `create_state_from_gsd` or `create_state_from_snapshot` to initialize the
+    simulation's `state`.
+    """
 
     def __init__(self, device, pid, seed=None, fire_kwargs=None):
         super().__init__(device, seed=seed)
@@ -39,7 +55,7 @@ class ForwardFluxSimulation(hoomd.Simulation):
     def _init_system(self, step):
         """Initialize the system State.
 
-        Perform additional initialization operations not in the State
+        Performs additional initialization operations not found in the State
         constructor.
         """
         self._cpp_sys = _forward_flux.FFSystem(self.state._cpp_sys_def, step, self._pid)
@@ -49,7 +65,28 @@ class ForwardFluxSimulation(hoomd.Simulation):
 
         self._init_communicator()
 
-    def sample_basin(self, steps: int, period: int, thermalize: Optional[int] = None, override_fire=None, forces=None):
+    @property
+    def pid(self):
+        """int: Particle ID of interest when calculating the order parameter."""
+        return self._pid
+
+    @pid.setter
+    def pid(self, value):
+        assert isinstance(value, int)
+        self._pid = value
+        self._cpp_sys.setPID(self._pid)
+
+    def get_mapped_pid(self):
+        return self._cpp_sys.getMappedPID()
+
+    def sample_basin(
+        self, 
+        steps: int, 
+        period: int, 
+        thermalize: Optional[int] = None, 
+        override_fire=None, 
+        forces=None
+    ):
         
         self._assert_ff_state()
 
@@ -73,6 +110,7 @@ class ForwardFluxSimulation(hoomd.Simulation):
 
     @property
     def basin_barrier(self):
+        """float: barrier defining the edge of the originating basin."""
         if self._basin_barrier is None:
             raise RuntimeError("basin_barrier must be set before access")
         return self._basin_barrier
@@ -85,10 +123,11 @@ class ForwardFluxSimulation(hoomd.Simulation):
         
 
     def reset_state(self):
+        """Resets the simulation state back to the reference snapshot"""
         if self._ref_snap is None:
             raise RuntimeError("The reference snapshot for the basin is not set")
         else:
-            self._cpp_sys.setRefSnapFromPython(self._ref_snap._cpp_obj)
+            self.state.set_snapshot(self._ref_snap)
 
 
     def _assert_langevin(self):
@@ -117,12 +156,13 @@ class ForwardFluxSimulation(hoomd.Simulation):
             fire.forces = [forces.pop() for _ in range(len(forces))]
         else:
             fire.forces = sup_forces
-
         self.operations.integrator = fire
 
+        # run fire until convergence is reached
         while not fire.converged:
             self.run(self.FIRE_STEPS)
 
+        # return simulation back to initial configuration
         if sup_forces is None:  
             integrator.forces = [fire.forces.pop() for _ in range(len(fire.forces))]
         self.operations.integrator = integrator
@@ -146,79 +186,130 @@ class ForwardFluxSimulation(hoomd.Simulation):
     def thermalize_state(self, kT):
         self.state.thermalize_particle_momenta(hoomd.filter.All(), kT)
 
-    def run_ff(self, basin_steps, trials=2000, thresh=0.95, barrier_step=0.01, op_thresh=None, thermalize: Optional[int] = None):
+    def run_ff(
+        self,
+        basin_steps: int,
+        collect: Optional[int] = None,
+        trials: int = 500,
+        thresh: float = 0.90,
+        barrier_step: float = 0.01,
+        flex_step: Optional[float] = None,
+        op_thresh: Optional[float] = None,
+        floor: Optional[float] = None,
+        attempts: int = 1,
+        thermalize: Optional[int] = None,
+        target_rate: Optional[int] = None,
+        verbose: bool = False
+    ) -> Tuple[float, List]:
+        """run forward flux sampling for t"""
 
-        old_seed = self.seed
         
-        self._assert_ff_state()
-
         # restrict simulation to MD methods w/ a Langevin thermostat (temporary)
+        self._assert_ff_state()
         integrator, _, _ = self._assert_langevin()
         dt = integrator.dt
 
         # possibly thermalize system
         if thermalize is not None:
-            self._cpp_sys.sampleBasinForwardFluxes(thermalize)
+            self._cpp_sys.run(thermalize, False)
 
         # resample the basin, looking for crossings, and resetting when necessary
-        
         a_crossings = self._cpp_sys.sampleBasinForwardFluxes(basin_steps)
 
-        print("Crossing:", len(a_crossings))
+        # optional resample to collect enough states
+        if collect is not None:
+            while len(a_crossings) < collect:
+                a_crossings.extend(self._cpp_sys.sampleBasinForwardFluxes(basin_steps))
+
+        if verbose:
+            print("A barrier crossings:", len(a_crossings))
+
+        if target_rate is not None:
+            assert target_rate > 0.0 and target_rate <= 1.0
+            inv_target_rate = 1/target_rate
+        else:
+            inv_target_rate = 2.0
+
 
         base_rate = len(a_crossings)/(basin_steps*dt)
 
-        barriers = [self.basin_barrier + barrier_step]
-
+        # main forward flux calculation loop
         k_abs = []
+        barriers = []
+        rates = []
         for state in a_crossings:
-
-            print("state:", len(k_abs))
-
+            if verbose:
+                print("state:", len(k_abs))
+            barrier = self.basin_barrier
+            state_barriers = []
+            state_rates = []
 
             last_trial_set = [state]
             rate = 1.0
             prod_trials = 1.0
             idx = 0
-            last_rate = 0.0
+            last_rate = 1.0
+
+            finish = None
+
+            if flex_step is not None:
+                last_step = barrier_step
 
             while True:
-                if idx >= len(barriers):
-                    barriers.append(barriers[idx-1] + barrier_step)
-                barrier = barriers[idx]
+                old_barrier = barrier
+                attempt_idx = 0
+                while attempt_idx < attempts:
+                    if flex_step is not None:
+                        next_step = max(min(inv_target_rate*last_rate*last_step, barrier_step), flex_step)
+                        barrier += next_step
+                        last_step = next_step
+                    else:
+                        barrier += barrier_step
+                    
+                    all_passed_trials = []
+                    k_trials = trials//len(last_trial_set)
+                    for new_state in last_trial_set:
+                        for k in range(k_trials):
+                            opt_snap, _ = self._cpp_sys.runFFTrial(barrier, new_state, False)
+                            if opt_snap is not None:
+                                all_passed_trials.append(opt_snap)
 
-                # print("    bar:", barrier)
-                
-                all_passed_trials = []
-                k_trials = trials//len(last_trial_set)
-                for new_state in last_trial_set:
-                    for k in range(k_trials):
-                        self.seed += 1
-                        opt_snap = self._cpp_sys.runFFTrial(barrier, new_state)
-                        print(k, opt_snap)
-                        if opt_snap is not None:
-                            all_passed_trials.append(opt_snap)
-
-                last_rate = len(all_passed_trials)/(k_trials*len(last_trial_set))
+                    last_rate = len(all_passed_trials)/(k_trials*len(last_trial_set))
+                    if last_rate > 0.0:
+                        break
+                    barrier = old_barrier
                 last_trial_set = all_passed_trials
                 prod_trials *= float(k_trials)
 
                 rate = len(all_passed_trials)/prod_trials
+                if verbose:
+                    print("barrier_idx:", idx, "|barrier_op:", barrier,  f"|last_rate: {last_rate:f.2}")
 
-                print(len(last_trial_set), last_rate)
+                state_barriers.append(barrier)
+                state_rates.append(rate)
                 
-                if len(last_trial_set) == 0:
+                if floor is not None and rate < floor:
+                    rate = 0.0
                     break
-                elif last_rate >= thresh and barrier >= op_thresh:
+                elif len(last_trial_set) == 0:
                     break
+                elif barrier >= op_thresh:
+                    if last_rate >= thresh:
+                        if finish is None:
+                            finish = barrier
+                        elif barrier - finish >= barrier_step:
+                            break
+                    elif finish is not None:
+                        finish = None
 
                 idx += 1
-            
+            if verbose:
+                print("final_rate:", rate)
             k_abs.append(rate)
+            barriers.append(state_barriers)
+            rates.append(state_rates)
 
-        self.seed = old_seed
-
-        return base_rate*np.mean(k_abs)
+        return base_rate*np.mean(k_abs), barriers, rates
 
 
 @njit
@@ -235,7 +326,6 @@ class ZeroDrift(Action):
     def __init__(self, reference_positions, box):
         self._ref_pos = reference_positions
         self._box = freud.box.Box.from_box(box)
-        self._imgs = np.array([0.0, 0.0, 0.0])
 
     @classmethod
     def from_state(cls, state: hoomd.State):
@@ -245,7 +335,6 @@ class ZeroDrift(Action):
         with self._state.cpu_local_snapshot as data:
             pos = data.particles.position._coerce_to_ndarray()
             rtags = data.particles.rtag._coerce_to_ndarray()
-            diff = self._box.unwrap(_diff_with_rtag(self._ref_pos, pos, rtags), self._imgs)
+            diff = self._box.wrap(_diff_with_rtag(self._ref_pos, pos, rtags))
             dx = np.mean(diff, axis=0)
-            # print(dx)
-            data.particles.position = self._box.unwrap(data.particles.position - dx, self._imgs)
+            data.particles.position = self._box.wrap(data.particles.position - dx)

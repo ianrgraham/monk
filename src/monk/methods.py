@@ -87,35 +87,20 @@ class PastSnapshotsBuffer(hoomd.custom.Action):
         snap = self._state.get_snapshot()
         self.snap_buffer.append(snap)
 
+class LogTrigger(hoomd.trigger.Trigger):
 
-"""
-I want to build a nice API for launching experiment simulations 
-"""
+    def __init__(self, base: int, start: float, step: float, ref_timestep: float):
+        self.ref = ref_timestep
+        self.base = base
+        self.step = step
+        self.cidx = start
+        self.cstep = self.base**self.cidx
+        super().__init__()
 
-class ForwardFlux:
-    """Forward flux sampling simulation
-    
-    TODO
-    1. method to establish the basin
-    2. apply forward flux given some operator
-        i. the operator defines whether the quantitiy is local, global, etc.
-        ii. implemented through a callback (function pointer)
-        iii. 
-    3. stop when forward flux probability or operator reaches a threshold
-
-    Since we will let the operator govern details of which particle is of interest,
-    I don't think we have to do much more within this code
-    """
-    
-    
-    def __init__(self, sim: hoomd.Simulation):
-        """Just set the simulation state, nothing else for now"""
-        self.sim = sim
-
-    @property
-    def operator(self):
-        """Callable function that determines """
-        return self._operator
-
-class IsoconfigurationalEnsemble:
-    pass
+    def compute(self, timestep):
+        result = False
+        while timestep - self.ref > np.round(self.cstep):
+            result = True
+            self.cidx += self.step
+            self.cstep = self.base**self.cidx
+        return result

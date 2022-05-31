@@ -30,8 +30,8 @@ class Project(flow.FlowProject):
 
         statepoint_grid_ka_lj = {
             "it": range(5), 
-            "phi": [1.0, 1.1, 1.15, 1.2, 1.3],
-            "A_frac": [80, 75, 70, 65, 60]
+            "phi": [1.0, 1.1, 1.2, 1.3],
+            "A_frac": [80, 70, 60]
         }
 
         for sp in grid(statepoint_grid_ka_lj):

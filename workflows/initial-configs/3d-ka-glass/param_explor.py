@@ -1,3 +1,5 @@
+"""Workflow to test the dynamical and structural properties of various systems """
+
 import flow
 import hoomd
 import numpy as np
@@ -152,7 +154,7 @@ def validate(job: signac.Project.Job):
     pass
 
 
-project: Project = Project.init_project(name="GenGlassStates3D", root=project_path("initial-configs/3d-glass"))
+project: Project = Project.init_project(name="GenGlassStates3D", root=project_path("initial-configs/3d-glass/param_explor"))
 
 if __name__ == '__main__':
     project.main()

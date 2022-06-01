@@ -26,17 +26,23 @@ def safe_clean_signac_project(dir: str, prepend_monk: bool = True):
     if not signac_rc.exists():
         raise FileNotFoundError(f"Cannot find {signac_rc}")
     else:
-        print(f"You are about to delete {path}")
+        print(f"\nYou are about to delete {path}")
         print("This folder contains ...")
         idx = 0
         for child in path.iterdir():
             if idx >= 10:
                 break
-            print(child[-1])
+            type = 'f'
+            if child.is_dir:
+                type = 'd'
+            print(f"    {type} {child.name}")
             idx += 1
-        print("Are you sure? y/N")
-        if input() == "y":
+        print("Are you sure? yes/N")
+        if input() == "yes":
+            print(f"Clearing {path}")
             shutil.rmtree(path)
+        else:
+            print("Doing nothing")
 
 
 def grid(gridspec):

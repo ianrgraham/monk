@@ -285,7 +285,22 @@ class Project(flow.FlowProject):
             _show_traceback_and_exit(error)
 
 
-    def _main_init(self, _args):
+    def _main_init(self, args):
+
+        steps = args.steps
+        if steps is None:
+            steps = 1_000_000
+
+        equil_steps = args.equil_steps
+        if equil_steps is None:
+            equil_steps = 100_000
+
+        is_test = args.test
+
+        if is_test:
+            num_iter = 1
+        else:
+            num_iter = 10
         
         project = self
         
@@ -301,13 +316,13 @@ class Project(flow.FlowProject):
         # Initialize the data space
 
         statepoint_grid_ka_lj = {
-            "it": range(5), 
-            "phi": [1.0, 1.1, 1.2, 1.3],
+            "it": range(num_iter), 
+            "phi": [1.0, 1.2, 1.3],
             "A_frac": [80, 70, 60]
         }
 
         for sp in grid(statepoint_grid_ka_lj):
-            universal = dict(N=512, init_kT=1.4, final_kT=0.4, dt=2.5e-3, steps=1_000_000, equil_steps=100_000, dumps=10)
+            universal = dict(N=512, init_kT=1.4, final_kT=0.4, dt=2.5e-3, steps=steps, equil_steps=equil_steps, dumps=100)
             sp.update(universal)
             job = project.open_job(sp).init()
             if "init" not in job.doc:
@@ -352,7 +367,25 @@ class Project(flow.FlowProject):
             parents=[base_parser],
             description="Initialize statepoints for processing.",
         )
+        parser_init.add_argument(
+            "--steps",
+            default=None,
+            type=int,
+            help="Total simulation time",
+        )
+        parser_init.add_argument(
+            "--equil-steps",
+            default=None,
+            type=int,
+            help="Total time spent equilibrating the simulation",
+        )
+        parser_init.add_argument(
+            "--test",
+            action=argparse._StoreTrueAction,
+            help="Run parameters for testing",
+        )
         parser_init.set_defaults(func=self._main_init)
+        
 
         parser_clear = subparsers.add_parser(
             "clear",
@@ -428,11 +461,21 @@ def run_nvt_sim(job: signac.Project.Job):
     sim.run(0)
     nvt.thermalize_thermostat_dof()
 
+    gsd_writer = hoomd.write.GSD(
+        filename=job.fn("equil.gsd"),
+        trigger=hoomd.trigger.Periodic(int(equil_steps/dumps), phase=sim.timestep),
+        mode='wb',
+        filter=hoomd.filter.All(),
+    )
+    sim.operations.writers.append(gsd_writer)
+
     sim.run(equil_steps)
+
+    sim.operations.writers.clear()
 
     gsd_writer = hoomd.write.GSD(
         filename=job.fn("traj.gsd"),
-        trigger=hoomd.trigger.Periodic(steps/dumps, phase=sim.timestep),
+        trigger=hoomd.trigger.Periodic(int(steps/dumps), phase=sim.timestep),
         mode='wb',
         filter=hoomd.filter.All(),
     )

@@ -289,18 +289,18 @@ class Project(flow.FlowProject):
 
         steps = args.steps
         if steps is None:
-            steps = 1_000_000
+            steps = 100_000_000
 
         equil_steps = args.equil_steps
         if equil_steps is None:
-            equil_steps = 100_000
+            equil_steps = 1_000_000
 
         is_test = args.test
 
         if is_test:
             num_iter = 1
         else:
-            num_iter = 10
+            num_iter = 3
         
         project = self
         
@@ -322,7 +322,7 @@ class Project(flow.FlowProject):
         }
 
         for sp in grid(statepoint_grid_ka_lj):
-            universal = dict(N=512, init_kT=1.4, final_kT=0.4, dt=2.5e-3, steps=steps, equil_steps=equil_steps, dumps=100)
+            universal = dict(N=10_000, init_kT=1.4, final_kT=0.4, dt=2.5e-3, steps=steps, equil_steps=equil_steps, dumps=100)
             sp.update(universal)
             job = project.open_job(sp).init()
             if "init" not in job.doc:
@@ -449,40 +449,76 @@ def run_nvt_sim(job: signac.Project.Job):
 
     kT_variant = hoomd.variant.Ramp(init_kT, final_kT, tstart, tramp)
 
+    class VariantLogger:
+
+        def __init__(self, sim, variant):
+            self._sim = sim
+            self._variant = variant
+
+        @property
+        def value(self):
+            return self._variant(self._sim.timestep)
+
     nvt = hoomd.md.methods.NVT(
         kT=kT_variant,
         filter=hoomd.filter.All(),
-        tau=0.5
+        tau=1.0
     )
 
     integrator.methods.append(nvt)
     sim.operations.integrator = integrator
 
+    thermodynamic_properties = hoomd.md.compute.ThermodynamicQuantities(
+    filter=hoomd.filter.All())
+    sim.operations.computes.append(thermodynamic_properties)
+
+    print("Thermalizing system")
     sim.run(0)
     nvt.thermalize_thermostat_dof()
+
+    print(nvt.loggables)
+    print(kT_variant(sim.timestep))
+
+    kT_logger = VariantLogger(sim, kT_variant)
+
+    logger = hoomd.logging.Logger(categories=['scalar'])
+    logger.add(sim, quantities=["timestep"])
+    logger[('NVT', 'kT')] = (kT_logger, 'value', 'scalar')
+    logger.add(thermodynamic_properties, quantities=["kinetic_temperature", "kinetic_energy", "potential_energy"])
+
+    table = hoomd.write.Table(trigger=hoomd.trigger.Periodic(period=10_000),
+                          logger=logger)
 
     gsd_writer = hoomd.write.GSD(
         filename=job.fn("equil.gsd"),
         trigger=hoomd.trigger.Periodic(int(equil_steps/dumps), phase=sim.timestep),
         mode='wb',
         filter=hoomd.filter.All(),
+        log=logger
     )
+    sim.operations.writers.append(table)
     sim.operations.writers.append(gsd_writer)
 
-    sim.run(equil_steps)
+    print("Performing initial equilibration")
 
-    sim.operations.writers.clear()
+    sim.run(equil_steps, True)
+
+    sim.operations.writers.pop()
+    del gsd_writer
+
+    print("Running quench to the glassy phase")
 
     gsd_writer = hoomd.write.GSD(
         filename=job.fn("traj.gsd"),
         trigger=hoomd.trigger.Periodic(int(steps/dumps), phase=sim.timestep),
         mode='wb',
         filter=hoomd.filter.All(),
+        log=logger
     )
 
     sim.operations.writers.append(gsd_writer)
 
-    sim.run(steps+1)
+    sim.run(steps+1, True)
 
     job.doc["simulated"] = True
 

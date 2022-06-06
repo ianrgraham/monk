@@ -81,9 +81,9 @@ traj = gsd.hoomd.open(str(ifile))
 
 # set potential
 print(f"Set potential. {{ pair: {pair_name}, args: {arguments} }}")
-integrator = hoomd.md.minimize.FIRE(dt=dt)
+integrator = hoomd.md.minimize.FIRE(dt, 1e-5, 1e-5, 1e-5)
 
-cell = hoomd.md.nlist.Cell()
+cell = hoomd.md.nlist.Tree(buffer=0.2)
 pot_pair = pair_func(cell, *arguments)
 integrator.forces.append(pot_pair)
 

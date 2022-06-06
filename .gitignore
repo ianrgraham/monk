@@ -28,6 +28,7 @@ droplet_environment.yml
 # any analysis output
 *.npy
 *.parquet
+*.pkl
 
 build
 

@@ -13,6 +13,8 @@ import logging
 import traceback
 import subprocess
 
+from multiprocessing import Pool
+
 from flow.project import UserConditionError, UserOperationError, SubmitError, \
     Jinja2TemplateNotFound, IgnoreConditions, _IgnoreConditionsConversion
 
@@ -522,25 +524,25 @@ def run_nvt_sim(job: signac.Project.Job):
 
     job.doc["simulated"] = True
 
+
 @Project.operation
 @Project.pre.after(run_nvt_sim)
-@Project.post.true('temps_equilibrated')
-@flow.directives()
-def equilibrate_temps(job: signac.Project.Job):
+@Project.post.true('dyn_recorded')
+# @Project.operation.with_directives({"np": 10})
+def record_dyn_small(job: signac.Project.Job):
 
     dt = job.sp["dt"]
-    equil_steps = job.sp["steps"]
+    sim_steps = 1_000_000
+    dumps = 10
 
     traj = gsd.hoomd.open(job.fn("traj.gsd"))
 
-    temp_indices = [-1]
+    temp_indices = [-1, -11, -21, -31]
 
     for temp_idx in temp_indices:
 
         snap: gsd.hoomd.Snapshot = traj[temp_idx]
         kT = snap.log["NVT/kT"][0]
-
-        file = job.fn(f"equil_{kT:.2f}.gsd")
 
         device = hoomd.device.auto_select()
         sim = hoomd.Simulation(device)
@@ -561,17 +563,21 @@ def equilibrate_temps(job: signac.Project.Job):
         integrator.methods.append(nvt)
         sim.operations.integrator = integrator
 
-        gsd_writer = hoomd.write.GSD(
-            filename=file,
-            trigger=hoomd.trigger.Periodic(400, phase=sim.timestep),
-            mode='wb',
-            filter=hoomd.filter.All()
-        )
-        sim.operations.writers.append(table)
-        sim.operations.writers.append(gsd_writer)
+        for i in range(dumps):
 
+            file = job.fn(f"equil_temp-{kT:.2f}_idx-{i}.gsd")
 
+            gsd_writer = hoomd.write.GSD(
+                filename=file,
+                trigger=methods.LogTrigger(10, 0, 0.1, sim.timestep),
+                mode='wb',
+                filter=hoomd.filter.All()
+            )
+            sim.operations.writers.append(gsd_writer)
 
+            sim.run(sim_steps)
+
+    job.doc["dyn_recorded"] = True
 
 
 project: Project = Project.init_project(name="ParamExplor", root=project_path("initial-configs/3d-glass/param_explor"))

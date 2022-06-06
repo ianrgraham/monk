@@ -317,7 +317,7 @@ class Project(flow.FlowProject):
         # Initialize the data space
 
         statepoint_grid_ka_lj = {
-            "it": range(num_iter), 
+            "it": range(num_iter),
             "phi": [1.0, 1.1, 1.2, 1.3, 1.35],
             "A_frac": [80, 70, 60]
         }

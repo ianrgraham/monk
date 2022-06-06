@@ -18,7 +18,6 @@ from flow.project import UserConditionError, UserOperationError, SubmitError, \
 
 from monk import project_path, project_view, safe_clean_signac_project, grid
 from monk import pair, prep, methods
-import gsd.hoomd
 
 class Project(flow.FlowProject):
 
@@ -301,7 +300,7 @@ class Project(flow.FlowProject):
         if is_test:
             num_iter = 1
         else:
-            num_iter = 5
+            num_iter = 3
         
         project = self
         
@@ -318,7 +317,7 @@ class Project(flow.FlowProject):
 
         statepoint_grid_ka_lj = {
             "it": range(num_iter), 
-            "phi": [1.0, 1.1, 1.2, 1.3, 1.35],
+            "phi": [1.0, 1.2, 1.3],
             "A_frac": [80, 70, 60]
         }
 
@@ -486,7 +485,7 @@ def run_nvt_sim(job: signac.Project.Job):
     logger[('NVT', 'kT')] = (kT_logger, 'value', 'scalar')
     logger.add(thermodynamic_properties, quantities=["kinetic_temperature", "kinetic_energy", "potential_energy"])
 
-    table = hoomd.write.Table(trigger=hoomd.trigger.Periodic(period=100_000),
+    table = hoomd.write.Table(trigger=hoomd.trigger.Periodic(period=10_000),
                           logger=logger)
 
     gsd_writer = hoomd.write.GSD(
@@ -529,52 +528,20 @@ def run_nvt_sim(job: signac.Project.Job):
 def equilibrate_temps(job: signac.Project.Job):
 
     dt = job.sp["dt"]
-    equil_steps = job.sp["steps"]
+    equil_steps = job.sp["equil_steps"]
 
-    traj = gsd.hoomd.open(job.fn("traj.gsd"))
+    device = hoomd.device.auto_select()
+    sim = hoomd.Simulation(device)
 
-    temp_indices = [-1]
-
-    for temp_idx in temp_indices:
-
-        snap: gsd.hoomd.Snapshot = traj[temp_idx]
-        kT = snap.log["NVT/kT"][0]
-
-        file = job.fn(f"equil_{kT:.2f}.gsd")
-
-        device = hoomd.device.auto_select()
-        sim = hoomd.Simulation(device)
-
-        sim.create_state_from_snapshot(snap)
-
-        integrator = hoomd.md.Integrator(dt=dt)
-        nlist = hoomd.md.nlist.Tree(0.2)
-        pot_pair = pair.KA_LJ(nlist)
-        integrator.forces.append(pot_pair)
-
-        nvt = hoomd.md.methods.NVT(
-            kT=kT,
-            filter=hoomd.filter.All(),
-            tau=1.0
-        )
-
-        integrator.methods.append(nvt)
-        sim.operations.integrator = integrator
-
-        gsd_writer = hoomd.write.GSD(
-            filename=file,
-            trigger=hoomd.trigger.Periodic(400, phase=sim.timestep),
-            mode='wb',
-            filter=hoomd.filter.All()
-        )
-        sim.operations.writers.append(table)
-        sim.operations.writers.append(gsd_writer)
+    integrator = hoomd.md.Integrator(dt=dt)
+    nlist = hoomd.md.nlist.Tree(0.2)
+    pot_pair = pair.KA_LJ(nlist)
+    integrator.forces.append(pot_pair)
 
 
 
 
-
-project: Project = Project.init_project(name="ParamExplor", root=project_path("initial-configs/3d-glass/param_explor"))
+project: Project = Project.init_project(name="ParamExplorV2", root=project_path("initial-configs/3d-glass/param_explor_v2"))
 
 if __name__ == '__main__':
     project.main()

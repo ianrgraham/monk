@@ -4,36 +4,6 @@ import hoomd
 import hoomd.pair_plugin.pair as p_pair
 import numpy as np
 
-def WCA_pot_smooth(r, rmin, rmax, epsilon, sigma):
-    V = 4 * epsilon * ((sigma / r)**12 - (sigma / r)**6) + \
-        epsilon - epsilon * (36*2**(-1/3.)*(r-rmax)**2) / sigma**2
-    F = 4 * epsilon / r * (12 * (sigma / r)**12 - 6 * (sigma / r)**6) + \
-        epsilon * (36*2**(-1/3.)*(r-rmax)) * 2 / sigma**2
-    return (V, F)
-
-
-def mLJ_pot_force_shifted(r, rmin, rmax, epsilon, sigma, delta):
-    delt = delta*sigma
-    sig = sigma - delt/np.power(2, 1./6)
-    v = lambda x: 4 * epsilon * ( (sig / (x-delt))**12 - (sig / (x-delt))**6)
-    shift = v(rmax)
-    V = v(r) - shift
-    F = 4 * epsilon / (r-delt) * ( 12 * (sig / (r-delt))**12 - 6 * (sig / (r-delt))**6)
-    return (V, F)
-
-
-def harm_pot(r, rmin, rmax, sigma):
-    V = 0.5*(1-r/sigma)**2
-    F = (1/sigma)*(1-r/sigma)
-    return (V, F)
-
-
-def hertz_pot(r, rmin, rmax, sigma):
-    V = 0.4*np.power(1-r/sigma, 2.5)
-    F = (1/sigma)*np.power(1-r/sigma, 1.5)
-    return (V, F)
-
-
 def KA_LJ(nlist: hoomd.md.nlist.NeighborList) -> hoomd.md.pair.Pair:
     '''Kob-Anderson Lennard-Jones potential
     '''
@@ -88,9 +58,9 @@ def bi_hertz(nlist: hoomd.md.nlist.NeighborList) -> hoomd.md.pair.Pair:
     eps_AA = 1.0
     eps_AB = 1.0
     eps_BB = 1.0
-    sig_AA = 1
-    sig_AB = 1.2
-    sig_BB = 1.4
+    sig_AA = 14/12
+    sig_AB = 1.0
+    sig_BB = 10/12
     r_on_cutoff = 0.0
     # specify Hertzian interactions between particle pairs
     hertz = p_pair.Hertzian(nlist)
@@ -180,29 +150,3 @@ def KA_LJ1208(nlist: hoomd.md.nlist.NeighborList) -> hoomd.md.pair.Pair:
     lj.r_on[('B', 'B')] = r_on_cutoff*sig_BB
 
     return lj
-
-# TODO need to update the table params to HOOMD v3
-def _Harmonic(nlist: hoomd.md.nlist.NeighborList) -> hoomd.md.pair.Pair:
-    '''Harmonic potential
-    '''
-    myPair = hoomd.md.pair.Table(width=1000, nlist=nlist)
-    myPair.pair_coeff.set("A", "A", func=harm_pot, rmin=0.0,
-                          rmax=5/6, coeff=dict(sigma=5/6))
-    myPair.pair_coeff.set("B", "B", func=harm_pot, rmin=0.0,
-                          rmax=7/6, coeff=dict(sigma=7/6))
-    myPair.pair_coeff.set("A", "B", func=harm_pot, rmin=0.0,
-                          rmax=1.0, coeff=dict(sigma=1.0))
-    return myPair
-
-# TODO need to update the table params to HOOMD v3
-def _Hertzian(nlist: hoomd.md.nlist.NeighborList) -> hoomd.md.pair.Pair:
-    '''Hertzian potential
-    '''
-    myPair = hoomd.md.pair.Table(width=1000, nlist=nlist)
-    myPair.pair_coeff.set("A", "A", func=hertz_pot, rmin=0.0,
-                          rmax=5/6, coeff=dict(sigma=5/6))
-    myPair.pair_coeff.set("B", "B", func=hertz_pot, rmin=0.0,
-                          rmax=7/6, coeff=dict(sigma=7/6))
-    myPair.pair_coeff.set("A", "B", func=hertz_pot, rmin=0.0,
-                          rmax=1.0, coeff=dict(sigma=1.0))
-    return myPair

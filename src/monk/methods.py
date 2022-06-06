@@ -104,3 +104,23 @@ class LogTrigger(hoomd.trigger.Trigger):
             self.cidx += self.step
             self.cstep = self.base**self.cidx
         return result
+
+class NextTrigger(hoomd.trigger.Trigger):
+
+    def __init__(self):
+        self._next = False
+        self._cached_tstep = None
+        super().__init__()
+
+    def next(self, ):
+        self._next = True
+
+    def compute(self, timestep):
+        if self._next:
+            self._next = False
+            self._cached_tstep = timestep
+            return True
+        elif self._cached_tstep is not None and self._cached_tstep == timestep:
+            return True
+        else:
+            return False

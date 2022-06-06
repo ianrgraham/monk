@@ -4,16 +4,12 @@ from typing import Iterable, List, Optional, Sequence, Union, Tuple, Callable, A
 from inspect import signature
 
 import numpy as np
+from numpy.typing import ArrayLike
 import hoomd
 import gsd.hoomd
 
 from . import pair as monk_pair
 
-class SimulationArgumentParser(argparse.ArgumentParser):
-    """Command line parser for `hoomd` simulations."""
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
 
 def init_rng(
         seed: Union[int, Sequence[int]]
@@ -26,6 +22,13 @@ def len_from_phi(N: int, phi: float, dim: int = 3):
     """Calculate regular box length for a given particle density"""
     assert dim in [2, 3], "Valid dims in hoomd are 2 and 3"
     return np.power(N / phi, 1/dim)
+
+
+def len_from_vol_frac(diams: ArrayLike, vol_frac: float, dim: int = 3):
+    """Calculate regular box length for a given volume fraction"""
+    assert dim in [2, 3], "Valid dims in hoomd are 2 and 3"
+    part_vol = np.sum(np.square(diams/2)*np.pi)
+    return np.power(part_vol / vol_frac, 1/dim)
 
 
 def search_for_pair(pair: List) -> Tuple[Callable[..., hoomd.md.pair.Pair], Tuple]:
@@ -83,6 +86,61 @@ def vary_potential_parameters(
         sim.run(steps)
         
 
+def uniform_random_snapshot(
+    N: int,
+    L: float,
+    rng: np.random.Generator,
+    dim: int = 2,
+    particle_types: Optional[List[str]] = None,
+    ratios: Optional[List[int]] = None,
+    diams: Optional[List[float]] = None
+) -> gsd.hoomd.Snapshot:
+
+    if particle_types is None:
+        particle_types = ['A', 'B']
+    
+    if ratios is None:
+        ratios = [50, 50]
+
+    # only valid dims in hoomd are 2 and 3
+    assert dim in [2, 3], "Valid dims in hoomd are 2 and 3"
+    assert L > 0, "Box length cannot be <= 0"
+    assert N > 0, "Number of particles cannot be <= 0"
+    len_types = len(particle_types)
+    assert np.sum(ratios) == 100, "Ratios must sum to 100"
+    assert len_types == len(ratios), "Lens of 'particle_types' and 'ratios' must match"
+    if diams is not None:
+        assert len_types == len(diams)
+
+    pos = np.pad(rng.uniform(low=-L/2, high=L/2, size=(N, dim)), ((0, 0), (0, 3-dim)))
+
+    if dim == 2:
+        Lz = 0.0
+    else:
+        Lz = L
+    # build snapshot and populate particles positions
+    snapshot = gsd.hoomd.Snapshot()
+    snapshot.particles.N = N
+    snapshot.particles.position = pos[:]
+    snapshot.configuration.box = [L, L, Lz, 0.0, 0.0, 0.0]
+    snapshot.particles.types = particle_types
+    snapshot.particles.typeid = [0] * N
+    snapshot.particles.diameter = [0] * N
+
+    # assign particle labels with rng
+    idx = 0
+    limits = np.cumsum(ratios)
+    j = 0
+    for i in rng.permutation(np.arange(N)):
+        while j/N*100 >= limits[idx]:
+            idx += 1
+        snapshot.particles.typeid[i] = idx
+        snapshot.particles.diameter[i] = diams[idx]
+
+        j += 1
+
+    return snapshot
+
 def approx_euclidean_snapshot(
         N: int,
         L: float,
@@ -91,7 +149,7 @@ def approx_euclidean_snapshot(
         particle_types: Optional[List[str]] = None,
         ratios: Optional[List[int]] = None,
         diams: Optional[List[float]] = None
-        ) -> gsd.hoomd.Snapshot:
+) -> gsd.hoomd.Snapshot:
     '''Constucts hoomd simulation snapshot with regularly spaced particles on a
     euclidian lattice.
 
@@ -164,8 +222,5 @@ def approx_euclidean_snapshot(
         snapshot.particles.diameter[i] = diams[idx]
 
         j += 1
-        
-
-
 
     return snapshot

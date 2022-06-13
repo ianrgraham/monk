@@ -190,6 +190,7 @@ class ForwardFluxSimulation(hoomd.Simulation):
         self,
         basin_steps: int,
         collect: Optional[int] = None,
+        sampling_thresh: Optional[float] = None,
         trials: int = 500,
         thresh: float = 0.90,
         barrier_step: float = 0.01,
@@ -203,6 +204,11 @@ class ForwardFluxSimulation(hoomd.Simulation):
     ) -> Tuple[float, List]:
         """run forward flux sampling for t"""
 
+        # set boundary to reset state if particle goes too far during sampling
+        if sampling_thresh is None:
+            sampling_thresh = self._basin_barrier
+        if sampling_thresh is None:
+            raise RuntimeError
         
         # restrict simulation to MD methods w/ a Langevin thermostat (temporary)
         self._assert_ff_state()
@@ -219,6 +225,8 @@ class ForwardFluxSimulation(hoomd.Simulation):
         # optional resample to collect enough states
         if collect is not None:
             while len(a_crossings) < collect:
+                if self._cpp_sys.computeOrderParameter() > sampling_thresh:
+                    self.reset_state()
                 a_crossings.extend(self._cpp_sys.sampleBasinForwardFluxes(basin_steps))
 
         if verbose:
@@ -275,6 +283,7 @@ class ForwardFluxSimulation(hoomd.Simulation):
                                 all_passed_trials.append(opt_snap)
 
                     last_rate = len(all_passed_trials)/(k_trials*len(last_trial_set))
+                    attempt_idx += 1
                     if last_rate > 0.0:
                         break
                     barrier = old_barrier
@@ -283,7 +292,7 @@ class ForwardFluxSimulation(hoomd.Simulation):
 
                 rate = len(all_passed_trials)/prod_trials
                 if verbose:
-                    print("barrier_idx:", idx, "|barrier_op:", barrier,  f"|last_rate: {last_rate:f.2}")
+                    print("barrier_idx:", idx, "|barrier_op:", barrier,  f"|last_rate: {last_rate}")
 
                 state_barriers.append(barrier)
                 state_rates.append(rate)

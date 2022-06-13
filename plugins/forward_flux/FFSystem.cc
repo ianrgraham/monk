@@ -27,6 +27,27 @@ Scalar propensity(uint32_t pid, uint32_t mapped_pid, SnapshotParticleData<Scalar
     return fast::sqrt(dot(pos_diff, pos_diff));
     }
 
+std::vector<Scalar> sys_propensity(SnapshotParticleData<Scalar>& ref_snap, std::map<unsigned int, unsigned int>& ref_map, ParticleData* cur_pdata)
+    {
+    auto box = cur_pdata->getBox();
+    unsigned n_tot_particles = cur_pdata->getN() + cur_pdata->getNGhosts();
+
+    std::vector<Scalar> output{};
+
+    for (unsigned int i = 0; i < n_tot_particles; i++)
+        {
+        auto idx = ArrayHandle<unsigned int>(cur_pdata->getRTags(),
+            access_location::host, access_mode::read).data[i];
+        auto local_pos = ArrayHandle<Scalar4>(cur_pdata->getPositions(),
+            access_location::host, access_mode::read).data[idx];
+        auto cur_pos = vec3<Scalar>(local_pos.x, local_pos.y, local_pos.z);
+        auto mapped_idx = ref_map[idx];
+        vec3<Scalar> pos_diff = box.minImage(cur_pos - ref_snap.pos[mapped_idx]);
+        output.push_back(fast::sqrt(dot(pos_diff, pos_diff)));
+        }
+    return output;
+    }
+
 FFSystem::FFSystem(std::shared_ptr<SystemDefinition> sysdef, uint64_t initial_tstep, uint32_t pid)
     : System(sysdef, initial_tstep), m_order_param(propensity), m_pid(pid)
     {
@@ -381,7 +402,7 @@ void export_FFSystem(pybind11::module& m)
         .def("setRefSnapshot", &FFSystem::setRefSnapshot)
         .def("setRefSnapFromPython", &FFSystem::setRefSnapFromPython)
         .def("sampleBasinForwardFluxes", &FFSystem::sampleBasinForwardFluxes)
-
+        .def("computeOrderParameter", &FFSystem::computeOrderParameter)
         .def("setPID", &FFSystem::setPID)
         .def("getMappedPID", &FFSystem::getMappedPID)
         ;

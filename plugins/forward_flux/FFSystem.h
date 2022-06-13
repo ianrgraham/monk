@@ -23,6 +23,8 @@ namespace hoomd
 
 Scalar propensity(uint32_t, uint32_t, ParticleData&, ParticleData*);
 
+std::vector<Scalar> sys_propensity(SnapshotParticleData<Scalar>&, std::map<unsigned int, unsigned int>&, ParticleData*);
+
 /** In order to do this all rhobustly in MD, I think we need to constain this to
     methods where we can apply FIRE (or GD)
 */
@@ -52,6 +54,8 @@ class PYBIND11_EXPORT FFSystem: public System
 
     uint32_t getMappedPID();
 
+    Scalar computeOrderParameter();
+
     private:
 
     //! Order parameter that is applied during FF calculation
@@ -62,8 +66,6 @@ class PYBIND11_EXPORT FFSystem: public System
     std::optional<SnapshotParticleData<Scalar>> m_ref_snap;
     std::optional<std::map<unsigned int, unsigned int>> m_ref_map;
     Scalar m_basin_barrier;
-
-    Scalar computeOrderParameter();
 
     void simpleRun(uint64_t nsteps);
     

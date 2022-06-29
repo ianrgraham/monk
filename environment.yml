@@ -15,5 +15,6 @@ dependencies:
   - pandas=1.4
   - ipykernel=6.13
   - freud=2.10
+  - numba=0.55
   # - pip:
   #     - schmeud=0.8

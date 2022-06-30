@@ -74,7 +74,8 @@ class MIMSEForce(Custom):
         pos = snap.particles.position
         
         kick = np.random.normal(0, 1.0, size=pos.shape)
-        kick[:,2] = 0
+        if self._state.box.is2D:
+            kick[:,2] = 0
         kick /= np.linalg.norm(kick)
         kick *= 0.05*bias_rad
         pos += kick

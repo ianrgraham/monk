@@ -17,12 +17,22 @@ std::optional<int> optionalInt(int x, bool b) {
 
 Scalar propensity(uint32_t pid, uint32_t mapped_pid, SnapshotParticleData<Scalar>& ref_snap, ParticleData* cur_pdata)
     {
+    // rtags are a map from tags to indices
+    // tags are a map from indices to tags
+    // mapped_pid is the index of the particle in the current snapshot associated with the tag pid
+
+    // so scratch what I said before. It appear that the SnapshotParticleData object sorts all of the data by tag
+    // so there is no need to do a lookup by index.
+
+    // so we get the index in the current frame of the pid with the rtags array
     auto idx = ArrayHandle<unsigned int>(cur_pdata->getRTags(),
         access_location::host, access_mode::read).data[pid];
     auto local_pos = ArrayHandle<Scalar4>(cur_pdata->getPositions(),
         access_location::host, access_mode::read).data[idx];
     auto cur_pos = vec3<Scalar>(local_pos.x, local_pos.y, local_pos.z);
     auto box = cur_pdata->getBox();
+
+    // ref_snap is sorted by tags! just use the pid tag to get the position
     vec3<Scalar> pos_diff = box.minImage(cur_pos - ref_snap.pos[pid]);
     return fast::sqrt(dot(pos_diff, pos_diff));
     }
@@ -35,19 +45,22 @@ std::vector<Scalar> sys_propensity(SnapshotParticleData<Scalar>& ref_snap, std::
     std::vector<Scalar> output{};
     output.reserve(n_tot_particles);
     
+    // get the rtags array
     auto rtags = ArrayHandle<unsigned int>(cur_pdata->getRTags(),
         access_location::host, access_mode::read);
 
+    // get the positions array
     auto pos = ArrayHandle<Scalar4>(cur_pdata->getPositions(),
         access_location::host, access_mode::read);
 
     for (unsigned int i = 0; i < n_tot_particles; i++)
         {
+        // grab the index for tag 'i' in the current frame
         auto idx = rtags.data[i];
         auto local_pos = pos.data[idx];
         auto cur_pos = vec3<Scalar>(local_pos.x, local_pos.y, local_pos.z);
-        auto mapped_idx = ref_map[i];
-        auto ref_pos = ref_snap.pos[mapped_idx];
+        // grab the index for tag 'i' in the reference snapshot, use i since ref_snap is already sorted by tag
+        auto ref_pos = ref_snap.pos[i];
         vec3<Scalar> pos_diff = box.minImage(cur_pos - ref_pos);
         output.push_back(fast::sqrt(dot(pos_diff, pos_diff)));
         }

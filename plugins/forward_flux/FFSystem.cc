@@ -23,33 +23,39 @@ Scalar propensity(uint32_t pid, uint32_t mapped_pid, SnapshotParticleData<Scalar
         access_location::host, access_mode::read).data[idx];
     auto cur_pos = vec3<Scalar>(local_pos.x, local_pos.y, local_pos.z);
     auto box = cur_pdata->getBox();
-    vec3<Scalar> pos_diff = box.minImage(cur_pos - ref_snap.pos[mapped_pid]);
+    vec3<Scalar> pos_diff = box.minImage(cur_pos - ref_snap.pos[pid]);
     return fast::sqrt(dot(pos_diff, pos_diff));
     }
 
 std::vector<Scalar> sys_propensity(SnapshotParticleData<Scalar>& ref_snap, std::map<unsigned int, unsigned int>& ref_map, ParticleData* cur_pdata)
     {
     auto box = cur_pdata->getBox();
-    unsigned n_tot_particles = cur_pdata->getN() + cur_pdata->getNGhosts();
+    unsigned n_tot_particles = cur_pdata->getN();
 
     std::vector<Scalar> output{};
+    output.reserve(n_tot_particles);
+    
+    auto rtags = ArrayHandle<unsigned int>(cur_pdata->getRTags(),
+        access_location::host, access_mode::read);
+
+    auto pos = ArrayHandle<Scalar4>(cur_pdata->getPositions(),
+        access_location::host, access_mode::read);
 
     for (unsigned int i = 0; i < n_tot_particles; i++)
         {
-        auto idx = ArrayHandle<unsigned int>(cur_pdata->getRTags(),
-            access_location::host, access_mode::read).data[i];
-        auto local_pos = ArrayHandle<Scalar4>(cur_pdata->getPositions(),
-            access_location::host, access_mode::read).data[idx];
+        auto idx = rtags.data[i];
+        auto local_pos = pos.data[idx];
         auto cur_pos = vec3<Scalar>(local_pos.x, local_pos.y, local_pos.z);
-        auto mapped_idx = ref_map[idx];
-        vec3<Scalar> pos_diff = box.minImage(cur_pos - ref_snap.pos[mapped_idx]);
+        auto mapped_idx = ref_map[i];
+        auto ref_pos = ref_snap.pos[mapped_idx];
+        vec3<Scalar> pos_diff = box.minImage(cur_pos - ref_pos);
         output.push_back(fast::sqrt(dot(pos_diff, pos_diff)));
         }
     return output;
     }
 
 FFSystem::FFSystem(std::shared_ptr<SystemDefinition> sysdef, uint64_t initial_tstep, uint32_t pid)
-    : System(sysdef, initial_tstep), m_order_param(propensity), m_pid(pid)
+    : System(sysdef, initial_tstep), m_order_param(propensity), m_sys_order_param(sys_propensity), m_pid(pid)
     {
     }
 
@@ -350,6 +356,56 @@ std::vector<Scalar> FFSystem::sampleBasin(uint64_t nsteps, uint64_t period)
     
     }
 
+std::vector<std::vector<Scalar>> FFSystem::sampleAllBasins(uint64_t nsteps, uint64_t period)
+    {
+    auto n_writes = nsteps/period;
+    std::vector<std::vector<Scalar>> result;
+    result.reserve(n_writes);
+
+    auto old_time = m_cur_tstep;
+    // m_initial_time = m_clk.getTime();
+
+    m_sysdef->getParticleData()->setFlags(determineFlags(m_cur_tstep));
+
+#ifdef ENABLE_MPI
+    if (m_sysdef->isDomainDecomposed())
+        {
+        // make sure we start off with a migration substep
+        m_comm->forceMigrate();
+
+        // communicate here
+        m_comm->communicate(m_cur_tstep);
+        }
+#endif
+
+    if (m_update_group_dof_next_step)
+        {
+        updateGroupDOF();
+        m_update_group_dof_next_step = false;
+        }
+
+    if (m_integrator)
+        {
+        m_integrator->prepRun(m_cur_tstep);
+        }
+
+    for (int i = 0; i < n_writes; i++) {
+        simpleRun(period);
+        result.push_back(computeSysOrderParameter());
+    }
+
+    // updateTPS();
+
+    if (PyErr_CheckSignals() != 0)
+        {
+        throw pybind11::error_already_set();
+        }
+
+    // m_cur_tstep = old_time;
+
+    return result;
+    
+    }
 
 void FFSystem::setRefSnapshot()
     {
@@ -360,6 +416,11 @@ void FFSystem::setRefSnapshot()
 uint32_t FFSystem::getMappedPID()
     {
     return m_mapped_pid;
+    }
+
+std::optional<std::map<unsigned int, unsigned int>> FFSystem::getRefMap()
+    {
+    return m_ref_map;
     }
 
 void FFSystem::setRefSnapFromPython(std::shared_ptr<SnapshotSystemData<Scalar>> snapshot)
@@ -380,6 +441,12 @@ Scalar FFSystem::computeOrderParameter()
     return m_order_param(m_pid, m_mapped_pid, *m_ref_snap, cur_pdata.get());
     }
 
+std::vector<Scalar> FFSystem::computeSysOrderParameter()
+    {
+    auto cur_pdata = m_sysdef->getParticleData();
+    return m_sys_order_param(m_ref_snap.value(), m_ref_map.value(), cur_pdata.get());
+    }
+
 void FFSystem::setPID(uint32_t pid)
     {
     m_pid = pid;
@@ -398,6 +465,7 @@ void export_FFSystem(pybind11::module& m)
 
         .def("runFFTrial", &FFSystem::runFFTrial)
         .def("sampleBasin", &FFSystem::sampleBasin)
+        .def("sampleAllBasins", &FFSystem::sampleAllBasins)
         .def("setBasinBarrier", &FFSystem::setBasinBarrier)
         .def("setRefSnapshot", &FFSystem::setRefSnapshot)
         .def("setRefSnapFromPython", &FFSystem::setRefSnapFromPython)
@@ -405,6 +473,7 @@ void export_FFSystem(pybind11::module& m)
         .def("computeOrderParameter", &FFSystem::computeOrderParameter)
         .def("setPID", &FFSystem::setPID)
         .def("getMappedPID", &FFSystem::getMappedPID)
+        .def("getRefMap", &FFSystem::getRefMap)
         ;
     }
 

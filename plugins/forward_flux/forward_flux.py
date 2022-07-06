@@ -79,6 +79,77 @@ class ForwardFluxSimulation(hoomd.Simulation):
     def get_mapped_pid(self):
         return self._cpp_sys.getMappedPID()
 
+    def _conf_space_distance(self, snap_i: hoomd.Snapshot, snap_j: hoomd.Snapshot) -> float:
+
+        box = freud.box.Box.from_box(snap_i.configuration.box)
+
+        # pos_i = box.unwrap(snap_i.particles.position, snap_i.particles.image)
+        # pos_j = box.unwrap(snap_j.particles.position, snap_j.particles.image)
+
+        dr = box.wrap(snap_j.particles.position - snap_i.particles.position)
+
+        return np.linalg.norm(dr)
+
+    def sample_all_sub_basins(
+        self, 
+        steps: int, 
+        period: int,
+        check_interval: int = 1000,
+        reset_if_basin_left: bool = True,
+        conf_space_cutoff: float = 0.4,
+        override_fire=None, 
+        forces=None
+    ):
+
+        self._assert_ff_state()
+
+        # quench to the inherent structure
+        self._run_fire(fire_kwargs=override_fire, sup_forces=forces)
+        snap = self.state.get_snapshot()
+        snap.particles.velocity[:] *= 0
+        self._ref_snap = snap  # set python snapshot (in case)
+        self._cpp_sys.setRefSnapFromPython(self._ref_snap._cpp_obj)  # set c++ snapshot for fast processing
+
+        output_basins = []
+        valid_basins = []
+        conf_dists = []
+
+        start_step = self.timestep
+
+        no_trigger = hoomd.trigger.On(0)
+
+        write_triggers = [w.trigger for w in self.operations.writers]
+
+        # sample the local basin, checkin every so often that we haven't jumped to another basin
+        for i in range(steps//check_interval):
+            basin_result = self._cpp_sys.sampleAllBasins(check_interval, period)
+            output_basins.append(basin_result)
+
+            snap = self.state.get_snapshot()
+            for w in self.operations.writers:
+                w.trigger = no_trigger
+            self._run_fire(fire_kwargs=override_fire, sup_forces=forces)
+            inher_struc_snap = self.state.get_snapshot()
+            dist = self._conf_space_distance(inher_struc_snap, self._ref_snap)
+            conf_dists.append(dist)
+
+            is_valid_basin = dist < conf_space_cutoff
+            if reset_if_basin_left and not is_valid_basin:
+                self.state.set_snapshot(self._ref_snap)
+                valid_basins.append(is_valid_basin)
+            else:
+                self.state.set_snapshot(snap)
+                valid_basins.append(is_valid_basin)
+
+            # reattach triggers once done
+            for w, t in zip(self.operations.writers, write_triggers):
+                w.trigger = t
+
+        # set the state back to the inherent structure
+        self.state.set_snapshot(self._ref_snap)
+
+        return output_basins, valid_basins, conf_dists
+
     def sample_basin(
         self, 
         steps: int, 

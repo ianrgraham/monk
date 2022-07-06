@@ -42,6 +42,8 @@ class PYBIND11_EXPORT FFSystem: public System
 
     std::vector<Scalar> sampleBasin(uint64_t nsteps, uint64_t period);
 
+    std::vector<std::vector<Scalar>> sampleAllBasins(uint64_t nsteps, uint64_t period);
+
     std::vector<std::shared_ptr<SnapshotSystemData<Scalar>>> sampleBasinForwardFluxes(uint64_t nsteps);
 
     void setRefSnapshot();
@@ -54,13 +56,18 @@ class PYBIND11_EXPORT FFSystem: public System
 
     uint32_t getMappedPID();
 
+    std::optional<std::map<unsigned int, unsigned int>> getRefMap();
+
     Scalar computeOrderParameter();
+
+    std::vector<Scalar> computeSysOrderParameter();
 
     private:
 
     //! Order parameter that is applied during FF calculation
     //  
     Scalar (*m_order_param)(uint32_t, uint32_t, SnapshotParticleData<Scalar>&, ParticleData*);
+    std::vector<Scalar> (*m_sys_order_param)(SnapshotParticleData<Scalar>&, std::map<unsigned int, unsigned int>&, ParticleData*);
     uint32_t m_pid;
     uint32_t m_mapped_pid;
     std::optional<SnapshotParticleData<Scalar>> m_ref_snap;

@@ -97,6 +97,7 @@ class ForwardFluxSimulation(hoomd.Simulation):
         check_interval: int = 1000,
         reset_if_basin_left: bool = True,
         conf_space_cutoff: float = 0.4,
+        thermalize: Optional[int] = None,
         override_fire=None, 
         forces=None
     ):
@@ -109,6 +110,8 @@ class ForwardFluxSimulation(hoomd.Simulation):
         snap.particles.velocity[:] *= 0
         self._ref_snap = snap  # set python snapshot (in case)
         self._cpp_sys.setRefSnapFromPython(self._ref_snap._cpp_obj)  # set c++ snapshot for fast processing
+        if thermalize is not None:
+            self.state.thermalize_particle_momenta(hoomd.filter.All(), thermalize)
 
         output_basins = []
         valid_basins = []
@@ -136,6 +139,8 @@ class ForwardFluxSimulation(hoomd.Simulation):
             is_valid_basin = dist < conf_space_cutoff
             if reset_if_basin_left and not is_valid_basin:
                 self.state.set_snapshot(self._ref_snap)
+                if thermalize is not None:
+                    self.state.thermalize_particle_momenta(hoomd.filter.All(), thermalize)
                 valid_basins.append(is_valid_basin)
             else:
                 self.state.set_snapshot(snap)

@@ -290,13 +290,13 @@ class Project(flow.FlowProject):
         is_test = args.test
 
         if is_test:
-            num_iter = 1
+            num_iter = 10
             phis = [1.2]
-            max_strains = [6e-2]
+            max_strains = [1e-2, 2e-2, 3e-2, 4e-2, 6e-2, 8e-2]
         else:
             num_iter = 1000
             phis = [1.2]
-            max_strains = [6e-2]
+            max_strains = [1e-2, 2e-2, 3e-2, 4e-2, 6e-2, 8e-2]
         
         project = self
         
@@ -318,7 +318,7 @@ class Project(flow.FlowProject):
         }
 
         for sp in grid(statepoint_grid_ka_lj):
-            universal = dict(N=256, dt=1e-2, dumps=100)
+            universal = dict(N=256, dt=1e-2, dumps=40)
             sp.update(universal)
             job = project.open_job(sp).init()
             if "init" not in job.doc:
@@ -412,11 +412,12 @@ def init_state(job: signac.Project.Job):
 def run_sim(job: signac.Project.Job):
     seed = job.doc["seed"]
     dt = job.sp["dt"]
-    # dumps = job.sp["dumps"]
-    dumps = 40
-    # max_strain = job.sp["max_strain"]
-    max_strain = 0.06
+    dumps = job.sp["dumps"]
+    # dumps = 40
+    max_strain = job.sp["max_strain"]
+    # max_strain = 0.06
     strain_step = 1e-3
+    cycles = 20
 
     device = hoomd.device.auto_select()
     sim = hoomd.Simulation(device, seed=seed)
@@ -493,7 +494,6 @@ def run_sim(job: signac.Project.Job):
     steps = int(max_strain/strain_step)
     write_steps = int(dumps/4)
     period = int(steps/write_steps)
-    cycles = 20
 
     print(period)
     

@@ -2,14 +2,17 @@
 # This file is part of the HOOMD-blue project, released under the BSD 3-Clause
 # License.
 
-"""Example Pair."""
+"""Plugin Pairs."""
+
+import copy
+import warnings
 
 from hoomd import _hoomd
-from hoomd.md import _md
+from hoomd.md import _md, force
 from hoomd.pair_plugin import _pair_plugin
 import hoomd
 from hoomd.md.nlist import NeighborList
-from hoomd.data.parameterdicts import TypeParameterDict
+from hoomd.data.parameterdicts import ParameterDict, TypeParameterDict
 from hoomd.data.typeparam import TypeParameter
 from hoomd.data.typeconverter import (OnlyFrom, OnlyTypes, nonnegative_real)
 import hoomd.md.pair as _pair
@@ -133,9 +136,9 @@ class Hertzian(_pair.Pair):
     Example::
 
         nl = nlist.Cell()
-        lj = pair.ExamplePair(nl, default_r_cut=2.5)
-        lj.params[('A', 'A')] = {'sigma': 1.0, 'epsilon': 1.0, 'delta': 0.25}
-        lj.r_cut[('A', 'A')] = 2.5
+        lj = pair.ExamplePair(nl, default_r_cut=1.0)
+        lj.params[('A', 'A')] = {'sigma': 1.0, 'epsilon': 1.0}
+        lj.r_cut[('A', 'A')] = 1.0
     """
 
     # Name of the potential we want to reference on the C++ side
@@ -178,22 +181,138 @@ class Hertzian(_pair.Pair):
         grandparent = super(_pair.Pair, self)
         grandparent._attach()
 
-class FrictionLJ(_pair.Pair):
+
+class FrictionPair(force.Force):
+    r"""Base class frictional pair forces.
+
+    Note:
+        :py:class:`FrictionPair` is the base class for all frictional pair forces. Users should
+        not instantiate this class directly.
+
+    .. py:attribute:: r_cut
+
+        Cuttoff radius beyond which the energy and force are 0
+        :math:`[\mathrm{length}]`. *Optional*: defaults to the value
+        ``default_r_cut`` specified on construction.
+
+        Type: `TypeParameter` [`tuple` [``particle_type``, ``particle_type``],
+        `float`])
+
+    .. py:attribute:: mode
+
+        *mode*, *optional*: defaults to ``"none"``.
+        Possible values: ``"none"``, ``"shift"``
+
+        Type: `str`
+
+    .. py:attribute:: nlist
+
+        Neighbor list used to compute the pair force.
+
+        Type: `hoomd.md.nlist.NeighborList`
+    """
+
+    # The accepted modes for the potential. Should be reset by subclasses with
+    # restricted modes.
+    _accepted_modes = ("none", "shift")
+
+    def __init__(self, nlist, default_r_cut=None, mode='none'):
+        super().__init__()
+        tp_r_cut = TypeParameter(
+            'r_cut', 'particle_types',
+            TypeParameterDict(nonnegative_real, len_keys=2))
+        if default_r_cut is not None:
+            tp_r_cut.default = default_r_cut
+
+        type_params = [tp_r_cut]
+
+        self._extend_typeparam(type_params)
+        self._param_dict.update(
+            ParameterDict(mode=OnlyFrom(self._accepted_modes),
+                          nlist=hoomd.md.nlist.NeighborList))
+        self.mode = mode
+        self.nlist = nlist
+
+    def _add(self, simulation):
+        super()._add(simulation)
+        self._add_nlist()
+
+    def _add_nlist(self):
+        nlist = self.nlist
+        deepcopy = False
+        if not isinstance(self._simulation, hoomd.Simulation):
+            if nlist._added:
+                deepcopy = True
+            else:
+                return
+        # We need to check if the force is added since if it is not then this is
+        # being called by a SyncedList object and a disagreement between the
+        # simulation and nlist._simulation is an error. If the force is added
+        # then the nlist is compatible. We cannot just check the nlist's _added
+        # property because _add is also called when the SyncedList is synced.
+        if deepcopy or nlist._added and nlist._simulation != self._simulation:
+            warnings.warn(
+                f"{self} object is creating a new equivalent neighbor list."
+                f" This is happending since the force is moving to a new "
+                f"simulation. Set a new nlist to suppress this warning.",
+                RuntimeWarning)
+            self.nlist = copy.deepcopy(nlist)
+        self.nlist._add(self._simulation)
+        # This is ideopotent, but we need to ensure that if we change
+        # neighbor list when not attached we handle correctly.
+        self._add_dependency(self.nlist)
+
+    def _attach(self):
+        # This should never happen, but leaving it in case the logic for adding
+        # missed some edge case.
+        if self._simulation != self.nlist._simulation:
+            raise RuntimeError("{} object's neighbor list is used in a "
+                               "different simulation.".format(type(self)))
+        self.nlist._attach()
+        if isinstance(self._simulation.device, hoomd.device.CPU):
+            cls = getattr(_md, self._cpp_class_name)
+            self.nlist._cpp_obj.setStorageMode(
+                _md.NeighborList.storageMode.half)
+        else:
+            cls = getattr(_md, self._cpp_class_name + "GPU")
+            self.nlist._cpp_obj.setStorageMode(
+                _md.NeighborList.storageMode.full)
+        self._cpp_obj = cls(self._simulation.state._cpp_sys_def,
+                            self.nlist._cpp_obj)
+
+        super()._attach()
+
+    def _setattr_param(self, attr, value):
+        if attr == "nlist":
+            self._nlist_setter(value)
+            return
+        super()._setattr_param(attr, value)
+
+    def _nlist_setter(self, new_nlist):
+        if new_nlist is self.nlist:
+            return
+        if self._attached:
+            raise RuntimeError("nlist cannot be set after scheduling.")
+        old_nlist = self.nlist
+        self._param_dict._dict["nlist"] = new_nlist
+        if self._added:
+            self._add_nlist()
+            old_nlist._remove_dependent(self)
+
+
+class FrictionLJ(FrictionPair):
 
     _cpp_class_name = "PotentialPairFrictionLJ"
 
-    def __init__(self, nlist, default_r_cut=None, default_r_on=0., mode='none'):
-        super().__init__(nlist, default_r_cut, default_r_on, mode)
+    def __init__(self, nlist, default_r_cut=None, mode='none'):
+        super().__init__(nlist, default_r_cut, mode)
         params = TypeParameter(
             'params', 'particle_types',
-            TypeParameterDict(epsilon=float, sigma=float, len_keys=2))
+            TypeParameterDict(epsilon=float, sigma=float, aes=float, delta=float, mus=float, mur=float, ks=float, kr=float, len_keys=2))
         self._add_typeparam(params)
 
     def _attach(self):
         """Slightly modified with regard to the base class `md.Pair`.
-        
-        In particular, we search for `PotentialPairFrictionLJ` in `_pair_plugin`
-        instead of `md.pair` as we would have done in the source code.
         """
         # create the c++ mirror class
         if not self.nlist._added:
@@ -210,11 +329,12 @@ class FrictionLJ(_pair.Pair):
             self.nlist._cpp_obj.setStorageMode(
                 _md.NeighborList.storageMode.half)
         else:
-            cls = getattr(_pair_plugin, self._cpp_class_name + "GPU")
+            # TODO GPU version is not yet implemented
+            cls = getattr(_pair_plugin, self._cpp_class_name) #  + "GPU"
             self.nlist._cpp_obj.setStorageMode(
                 _md.NeighborList.storageMode.full)
         self._cpp_obj = cls(self._simulation.state._cpp_sys_def,
                             self.nlist._cpp_obj)
         
-        grandparent = super(_pair.Pair, self)
+        grandparent = super(FrictionPair, self)
         grandparent._attach()

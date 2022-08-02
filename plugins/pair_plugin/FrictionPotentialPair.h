@@ -730,7 +730,8 @@ void FrictionPotentialPair<friction_evaluator>::computeForces(uint64_t timestep)
                 dx = box.minImage(dx);
                 vec3<Scalar> v_dx(dx);
                 auto rsqr = dot(dx, dx);
-                auto unit_dx = dx * fast::rsqrt(rsqr);
+                auto inv_r = fast::rsqrt(rsqr);
+                auto unit_dx = dx * inv_r;
 
 
                 // get parameters for this type pair
@@ -788,10 +789,12 @@ void FrictionPotentialPair<friction_evaluator>::computeForces(uint64_t timestep)
                     
                     force_slide = ks * xi_ij;
                     force_roll = kr * psi_ij;
-                    if (dot(force_slide, force_slide) > mus * force_sqr)
-                        force_slide = mus * force;
-                    if (dot(force_roll, force_roll) > mur * force_sqr)
-                        force_roll = mur * force;
+                    Scalar slide_sqr = dot(force_slide, force_slide);
+                    Scalar roll_sqr = dot(force_roll, force_roll);
+                    if (slide_sqr > mus * mus * force_sqr)
+                        force_slide *= mus * fast::rsqrt(slide_sqr) * inv_r / force_divr;
+                    if (roll_sqr > mur * mur * force_sqr)
+                        force_roll *= mur * fast::rsqrt(roll_sqr) * inv_r / force_divr;
 
                     force += force_slide;
 
@@ -802,9 +805,14 @@ void FrictionPotentialPair<friction_evaluator>::computeForces(uint64_t timestep)
                     tmp = a_ij * cross(w_i - w_j, v_unit_dx) * m_deltaT;
                     *psi_it += make_scalar3(tmp.x, tmp.y, tmp.z);
 
-                    torque_i = di * cross(v_unit_dx, force_slide) + a_ij * cross(v_unit_dx, force_roll);
+                    auto torque_slide = cross(v_unit_dx, force_slide);
+                    auto torque_roll = cross(v_unit_dx, force_roll);
+                    torque_i = di * torque_slide + a_ij * torque_roll;
+
+                    // TODO need to verify that this is the correct, but since we assume the bodies are spherical,
+                    // their torques should just be roughly negative (still respecting a possibly different diameter)
                     if (third_law)
-                        torque_j = dj * cross(v_unit_dx, -force_slide) + a_ij * cross(v_unit_dx, -force_roll);
+                        torque_j = - dj * torque_slide - a_ij * torque_roll;
                     }
                 else
                     {

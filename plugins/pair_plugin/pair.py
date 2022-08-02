@@ -151,7 +151,48 @@ class Hertzian(_pair.Pair):
     def _attach(self):
         """Slightly modified with regard to the base class `md.Pair`.
         
-        In particular, we search for `PotentialPairExample` in `_pair_plugin`
+        In particular, we search for `PotentialPairHertzian` in `_pair_plugin`
+        instead of `md.pair` as we would have done in the source code.
+        """
+        # create the c++ mirror class
+        if not self.nlist._added:
+            self.nlist._add(self._simulation)
+        else:
+            if self._simulation != self.nlist._simulation:
+                raise RuntimeError("{} object's neighbor list is used in a "
+                                   "different simulation.".format(type(self)))
+        if not self.nlist._attached:
+            self.nlist._attach()
+        # Find definition of _cpp_class_name in _pair_plugin
+        if isinstance(self._simulation.device, hoomd.device.CPU):
+            cls = getattr(_pair_plugin, self._cpp_class_name)
+            self.nlist._cpp_obj.setStorageMode(
+                _md.NeighborList.storageMode.half)
+        else:
+            cls = getattr(_pair_plugin, self._cpp_class_name + "GPU")
+            self.nlist._cpp_obj.setStorageMode(
+                _md.NeighborList.storageMode.full)
+        self._cpp_obj = cls(self._simulation.state._cpp_sys_def,
+                            self.nlist._cpp_obj)
+        
+        grandparent = super(_pair.Pair, self)
+        grandparent._attach()
+
+class FrictionLJ(_pair.Pair):
+
+    _cpp_class_name = "PotentialPairFrictionLJ"
+
+    def __init__(self, nlist, default_r_cut=None, default_r_on=0., mode='none'):
+        super().__init__(nlist, default_r_cut, default_r_on, mode)
+        params = TypeParameter(
+            'params', 'particle_types',
+            TypeParameterDict(epsilon=float, sigma=float, len_keys=2))
+        self._add_typeparam(params)
+
+    def _attach(self):
+        """Slightly modified with regard to the base class `md.Pair`.
+        
+        In particular, we search for `PotentialPairFrictionLJ` in `_pair_plugin`
         instead of `md.pair` as we would have done in the source code.
         """
         # create the c++ mirror class

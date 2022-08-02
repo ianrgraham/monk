@@ -2,8 +2,11 @@
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 // Include the defined classes that are to be exported to python
-#include "ExamplePotential.h"
+#include "EvaluatorPairExample.h"
+#include "EvaluatorPairHertzian.h"
+#include "EvaluatorPairFrictionLJ.h"
 #include "hoomd/md/PotentialPair.h"
+#include "FrictionPotentialPair.h"
 
 #include <pybind11/pybind11.h>
 
@@ -24,9 +27,12 @@ PYBIND11_MODULE(_pair_plugin, m)
     {
     detail::export_PotentialPair<EvaluatorPairExample>(m, "PotentialPairExample");
     detail::export_PotentialPair<EvaluatorPairHertzian>(m, "PotentialPairHertzian");
+    detail::export_FrictionPotentialPair<EvaluatorPairFrictionLJ>(m, "PotentialPairFrictionLJ");
 #ifdef ENABLE_HIP
     detail::export_PotentialPairGPU<EvaluatorPairExample>(m, "PotentialPairExampleGPU");
     detail::export_PotentialPairGPU<EvaluatorPairHertzian>(m, "PotentialPairHertzianGPU");
+    // TODO, write GPU implementation
+    // detail::export_FrictionPotentialPairGPU<EvaluatorPairFrictionLJ>(m, "PotentialPairFrictionLJGPU");
 #endif
     }
 

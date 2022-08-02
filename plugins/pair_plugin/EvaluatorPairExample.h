@@ -229,12 +229,12 @@ class EvaluatorPairExample
             // Must take sqrt to subtract \Delta
             // original: Scalar r2inv = Scalar(1.0) / rsq;
             // Scalar r2inv = Scalar(1.0) / rsq;
-            
+            Scalar rinv_std = fast::rsqrt(rsq);
             Scalar rinv = Scalar(1.0) / (fast::sqrt(rsq) - dlt);
             Scalar r2inv = rinv * rinv;
 
             Scalar r6inv = r2inv * r2inv * r2inv;
-            force_divr = r2inv * r6inv * (Scalar(12.0) * lj1 * r6inv - Scalar(6.0) * lj2);
+            force_divr = rinv_std * rinv * r6inv * (Scalar(12.0) * lj1 * r6inv - Scalar(6.0) * lj2);
 
             pair_eng = r6inv * (lj1 * r6inv - lj2);
 

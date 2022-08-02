@@ -515,11 +515,51 @@ def run_sim(job: signac.Project.Job):
 
     job.doc["simulated"] = True
 
-# @Project.operation
-# @Project.pre.after(run_nvt_sim)
-# @Project.post.true('validated')
-# def validate(job: signac.Project.Job):
-#     pass
+@Project.operation
+@Project.pre.after(run_sim)
+@Project.post.true('d2min_stob_computed')
+def compute_strob_d2min(job: signac.Project.Job):
+    
+    # D2min computed from stroboscopic simulation frames (when a full period has cycled)
+
+    pass
+
+@Project.operation
+@Project.pre.after(run_sim)
+@Project.post.true('d2min_fine_computed')
+def compute_fine_d2min(job: signac.Project.Job):
+
+    # D2min computed between each and every frame in the simulation
+
+    pass
+
+@Project.operation
+@Project.pre.after(run_sim)
+@Project.post.true('t1_stob_computed')
+def compute_strob_t1(job: signac.Project.Job):
+    
+    # T1 events computed from stroboscopic simulation frames (when a full period has cycled)
+
+    pass
+
+@Project.operation
+@Project.pre.after(run_sim)
+@Project.post.true('t1_fine_computed')
+def compute_fine_t1(job: signac.Project.Job):
+    
+    # T1 events computed between each and every frame in the simulation
+
+    pass
+
+
+@Project.operation
+@Project.pre.after(run_sim)
+@Project.post.true('qlm_stob_computed')
+def compute_strob_qlm(job: signac.Project.Job):
+    
+    # T1 events computed between each and every frame in the simulation
+
+    pass
 
 
 project: Project = Project.init_project(name="OscillatoryMem", root=project_path("oscillatory-mem"))

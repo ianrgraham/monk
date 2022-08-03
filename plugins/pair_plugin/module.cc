@@ -12,8 +12,8 @@
 
 #ifdef ENABLE_HIP
 #include "hoomd/md/PotentialPairGPU.h"
-#include "ExampleDriverPotentialPairGPU.cuh"
-#include "HertzianDriverPotentialPairGPU.cuh"
+// #include "ExampleDriverPotentialPairGPU.cuh"
+// #include "HertzianDriverPotentialPairGPU.cuh"
 #endif
 
 namespace hoomd

@@ -1,4 +1,11 @@
-"""Workflow to automatically build the glassy phase diagram for """
+"""Workflow to automatically build glassy phase diagrams.
+
+Statepoints here define isobaric quenches that should begin in the liqiud state and terminate in the glass.
+Configurations are thermalized until a target diffusivity is reached. From there, the system temperature is
+cooled with a dynamic update scheme until the t
+
+
+"""
 
 import flow
 import signac
@@ -8,15 +15,9 @@ import yaml
 import sys
 
 from monk import project_path, project_view, safe_clean_signac_project, grid
-from monk import pair, prep, methods
+from monk import pair, prep, methods, workflow
 
-with open("config.yaml") as file:
-    CONFIG = yaml.load()
-    WORKSPACE = CONFIG["workspace"]
-
-print(WORKSPACE)
-
-sys.exit()
+config = workflow.get_config()
 
 class Project(flow.FlowProject):
     pass
@@ -26,19 +27,26 @@ class Project(flow.FlowProject):
 @Project.post.true('init_state')
 def init_state(job: signac.Project.Job):
     N = job.sp["N"]
-    phi = job.sp["phi"]
+    init_phi = job.sp["init_phi"]
+    target_D = job.sp["target_D"]
     seed = job.doc["seed"]
+    A_frac = job.sp["A_frac"]
 
     device = hoomd.device.auto_select()
     sim = hoomd.Simulation(device, seed=seed)
 
     rng = prep.init_rng(seed)
-    L = prep.len_from_phi(N, phi, dim=2)
-    snap = prep.uniform_random_snapshot(
-        N, L, rng, dim=2, diams=[7/6, 5/6]
+    L = prep.len_from_phi(N, init_phi)
+    snap = prep.approx_euclidean_snapshot(
+        N, L, rng, dim=3, particle_types=["A", "B"], ratios=[A_frac, 100-A_frac], diams=[1.0, 0.88]
     )
     sim.create_state_from_snapshot(snap)
 
     hoomd.write.GSD.write(sim.state, job.fn("init.gsd"))
 
     job.doc["init_state"] = True
+
+# TODO add operation to map out the dynamics 
+
+
+# TODO once we understand the rough dynamics of each system, we can 

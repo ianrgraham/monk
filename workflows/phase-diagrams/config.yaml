@@ -1,1 +1,19 @@
-workspace: ${MONK_DATA_DIR}/monk/phase-diagrams
+root: ${MONK_DATA_DIR}/monk/phase-diagrams
+
+# diffusion & tau_alpha estimation
+diffusion_and_tau_alpha:
+  default:
+    start_T: 2.0
+    T_step_ratio: 0.1
+    record_steps: 100 # relative to tau_alpha
+    target_start_D: 1.0
+    target_end_D: 1.0e-3
+    threshold_tau_alpha: 1.0e6
+    tau_alpha_stability_ratio: 0.05
+
+# linear quench to estimate phenomelogical glass transition temperature
+linear_quench:
+  default:
+    start_T: 2.0
+    end_T: 0.1
+    quench_rate: 1.0e-3 # kT/tau_A

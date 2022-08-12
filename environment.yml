@@ -17,5 +17,6 @@ dependencies:
   - freud=2.10
   - numba=0.55
   - pyyaml=6.0
+  - click=8.0
   # - pip:
   #     - schmeud=0.8

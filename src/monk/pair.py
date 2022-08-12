@@ -16,7 +16,7 @@ def KA_LJ(nlist: hoomd.md.nlist.NeighborList) -> hoomd.md.pair.Pair:
     sig_BB = 0.88
     r_on_cutoff = 0.0
     # specify Lennard-Jones interactions between particle pairs
-    lj = hoomd.md.pair.LJ(nlist=nlist, mode="xplor")
+    lj = hoomd.md.pair.LJ(nlist=nlist, mode="shift")
     lj.params[('A', 'A')] = dict(epsilon=eps_AA, sigma=sig_AA)
     lj.r_cut[('A', 'A')] = r_cutoff*sig_AA
     lj.r_on[('A', 'A')] = r_on_cutoff*sig_AA
@@ -113,7 +113,8 @@ def KA_ModLJ(nlist: hoomd.md.nlist.NeighborList, delta: float) -> hoomd.md.pair.
     sig_BB = 0.88
     r_on_cutoff = 0.0
     # specify Lennard-Jones interactions between particle pairs
-    lj = p_pair.ModLJ(nlist=nlist)
+    lj = p_pair.ModLJ(nlist=nlist, mode="shift")
+    # lj = hoomd.md.pair.ExpandedLJ(nlist=nlist, mode="shift")
     lj.params[('A', 'A')] = dict(epsilon=eps_AA, sigma=sig_AA, delta=delta)
     lj.r_cut[('A', 'A')] = r_cutoff*sig_AA
     lj.r_on[('A', 'A')] = r_on_cutoff*sig_AA

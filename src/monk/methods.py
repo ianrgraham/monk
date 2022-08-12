@@ -124,3 +124,51 @@ class NextTrigger(hoomd.trigger.Trigger):
             return True
         else:
             return False
+
+class ConstantShear(hoomd.custom.Action):
+    """Apply a constant shear rate to the simulation box.
+    
+    Arguments
+    ---------
+    - gamma: float - the shear rate (in units of box ratio per time step)
+    - timestep: int - the initial reference timestep
+    - pair: str - the dimension pair to apply the shear to"""
+    def __init__(self, gamma: float, timestep: int, pair: str = "xz"):
+        super().__init__()
+        self._gamma = gamma
+        self._last_timestep = timestep
+        match pair:
+            case "xy":
+                self._pair_mode = 0
+            case "yz":
+                self._pair_mode = 1
+            case "xz":
+                self._pair_mode = 2
+
+    def act(self, timestep):
+        time_diff = timestep - self._last_timestep
+        self._last_timestep = timestep
+        box = self._state.box
+        match self._pair_mode:
+            case 0: # xy
+                xy = box.xy + self._gamma * time_diff
+                if xy > 0.5:
+                    xy -= 1.0
+                elif xy < -0.5:
+                    xy += 1.0
+                box.xy = xy
+            case 1: # yz
+                yz = box.yz + self._gamma * time_diff
+                if yz > 0.5:
+                    yz -= 1.0
+                elif yz < -0.5:
+                    yz += 1.0
+                box.yz = yz
+            case 2: # xz
+                xz = box.xz + self._gamma * time_diff
+                if xz > 0.5:
+                    xz -= 1.0
+                elif xz < -0.5:
+                    xz += 1.0
+                box.xz = xz
+        self._state.set_box(box)

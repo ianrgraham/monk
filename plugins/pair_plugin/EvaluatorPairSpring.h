@@ -3,8 +3,8 @@
 
 // Maintainer: joaander
 
-#ifndef __PAIR_EVALUATOR_SPRING_H__
-#define __PAIR_EVALUATOR_SPRING_H__
+#ifndef __PAIR_EVALUATOR_HARM_SPRING_H__
+#define __PAIR_EVALUATOR_HARM_SPRING_H__
 
 #ifndef __HIPCC__
 #include <string>
@@ -15,7 +15,7 @@
 
 /*! \file EvaluatorPairSpring.h
     \brief Defines the pair evaluator class for the harmonic spring potential
-    \details Harmonic Spring potential
+    \details HarmSpring Spring potential
 */
 
 // need to declare these class methods with __device__ qualifiers when building in nvcc
@@ -34,7 +34,7 @@ namespace hoomd
 namespace md
     {
 
-class EvaluatorPairHarmonic
+class EvaluatorPairHarmSpring
     {
     public:
     //! Define the parameter type used by this pair potential evaluator
@@ -93,7 +93,7 @@ class EvaluatorPairHarmonic
         \param _rcutsq Squared distance at which the potential goes to 0
         \param _params Per type pair parameters of this potential
     */
-    DEVICE EvaluatorPairHarmonic(Scalar _rsq, Scalar _rcutsq, const param_type& _params)
+    DEVICE EvaluatorPairHarmSpring(Scalar _rsq, Scalar _rcutsq, const param_type& _params)
         : rsq(_rsq), rcutsq(_rcutsq), k(_params.k), rcut(_params.rcut)
         {
         }
@@ -109,7 +109,7 @@ class EvaluatorPairHarmonic
     */
     DEVICE void setDiameter(Scalar di, Scalar dj) { }
 
-    //! Harmonic doesn't use charge
+    //! HarmSpring doesn't use charge
     DEVICE static bool needsCharge()
         {
         return false;
@@ -213,4 +213,4 @@ class EvaluatorPairHarmonic
     } // end namespace md
     } // end namespace hoomd
 
-#endif // __PAIR_EVALUATOR_SPRING_H__
+#endif // __PAIR_EVALUATOR_HARM_SPRING_H__

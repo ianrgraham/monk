@@ -3,8 +3,8 @@
 
 // Maintainer: joaander
 
-#ifndef __PAIR_EVALUATOR_EXAMPLE_H__
-#define __PAIR_EVALUATOR_EXAMPLE_H__
+#ifndef __PAIR_EVALUATOR_MLJ_H__
+#define __PAIR_EVALUATOR_MLJ_H__
 
 #ifndef __HIPCC__
 #include <string>
@@ -13,8 +13,8 @@
 // #include "hoomd/md/EvaluatorPairLJ.h"
 #include "hoomd/HOOMDMath.h"
 
-/*! \file EvaluatorPairExample.h
-    \brief Defines the pair evaluator class for the example potential
+/*! \file EvaluatorPairMLJ.h
+    \brief Defines the pair evaluator class for the modified LJ potential
     \details Modified version of the LJ potential
 */
 
@@ -33,7 +33,7 @@ namespace hoomd
     {
 namespace md
     {
-//! Class for evaluating the LJ pair potential
+//! Class for evaluating the modified LJ pair potential
 /*! <b>Original</b>
     <b>General Overview</b>
 
@@ -115,7 +115,7 @@ namespace md
     This is similar to the LJ expand potential from LAMMPS, though
 
 */
-class EvaluatorPairExample
+class EvaluatorPairMLJ
     {
     public:
     //! Define the parameter type used by this pair potential evaluator
@@ -183,7 +183,7 @@ class EvaluatorPairExample
         \param _rcutsq Squared distance at which the potential goes to 0
         \param _params Per type pair parameters of this potential
     */
-    DEVICE EvaluatorPairExample(Scalar _rsq, Scalar _rcutsq, const param_type& _params)
+    DEVICE EvaluatorPairMLJ(Scalar _rsq, Scalar _rcutsq, const param_type& _params)
         : rsq(_rsq), rcutsq(_rcutsq), lj1(_params.lj1), lj2(_params.lj2), dlt(_params.dlt)
         {
         }
@@ -291,4 +291,4 @@ class EvaluatorPairExample
     } // end namespace md
     } // end namespace hoomd
 
-#endif // __PAIR_EVALUATOR_EXAMPLE_H__
+#endif // __PAIR_EVALUATOR_MLJ_H__

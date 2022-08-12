@@ -34,3 +34,5 @@ build
 
 *.gif
 *.mp4
+
+workflows/**/root

@@ -217,8 +217,6 @@ template<class evaluator> class HPFPotentialPair : public ForceCompute
     std::vector<std::pair<unsigned int, unsigned int>> m_log_pairs;
     std::vector<vec3<Scalar>> m_log_pair_conserv_forces;
 
-    };
-
 #ifdef ENABLE_MPI
     /// The system's communicator.
     std::shared_ptr<Communicator> m_comm;
@@ -746,9 +744,9 @@ template<class evaluator> void HPFPotentialPair<evaluator>::computeForces(uint64
                 Scalar slide_sqr = dot(force_slide, force_slide);
                 Scalar roll_sqr = dot(force_roll, force_roll);
                 if (slide_sqr > m_mus * m_mus * force_sqr)
-                    force_slide *= m_mus * fast::rsqrt(slide_sqr) * rinv / force_divr;
+                    force_slide *= m_mus * fast::rsqrt(slide_sqr) * force_divr * r;
                 if (roll_sqr > m_mur * m_mur * force_sqr)
-                    force_roll *= m_mur * fast::rsqrt(roll_sqr) * rinv / force_divr;
+                    force_roll *= m_mur * fast::rsqrt(roll_sqr) * force_divr * r;
 
                 force += force_slide;
 

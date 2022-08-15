@@ -23,11 +23,11 @@ namespace md
 // in CMakeLists (with an underscore in front)
 PYBIND11_MODULE(_pair_plugin, m)
     {
-    detail::export_PotentialPair<EvaluatorPairMLJ>(m, "PotentialPairExample");
+    detail::export_PotentialPair<EvaluatorPairMLJ>(m, "PotentialPairMLJ");
     detail::export_PotentialPair<EvaluatorPairHertzian>(m, "PotentialPairHertzian");
     detail::export_HPFPotentialPair<EvaluatorPairHarmSpring>(m, "PotentialPairHPF");
 #ifdef ENABLE_HIP
-    detail::export_PotentialPairGPU<EvaluatorPairMLJ>(m, "PotentialPairExampleGPU");
+    detail::export_PotentialPairGPU<EvaluatorPairMLJ>(m, "PotentialPairMLJGPU");
     detail::export_PotentialPairGPU<EvaluatorPairHertzian>(m, "PotentialPairHertzianGPU");
     // TODO, write GPU implementation
     // detail::export_FrictionPotentialPairGPU<EvaluatorPairFrictionLJ>(m, "PotentialPairFrictionLJGPU");

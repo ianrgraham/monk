@@ -80,8 +80,8 @@ class ModLJ(_pair.Pair):
     def _attach(self):
         """Slightly modified with regard to the base class `md.Pair`.
         
-        In particular, we search for `PotentialPairExample` in `_pair_plugin`
-        instead of `md.pair` as we would have done in the source code.
+        In particular, we search for `PotentialPairExample` in `hoomd.pair_plugin._pair_plugin`
+        instead of `hoomd.md._md`.
         """
         # create the c++ mirror class
         if not self.nlist._added:

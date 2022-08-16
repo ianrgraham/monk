@@ -214,8 +214,7 @@ template<class evaluator> class HPFPotentialPair : public ForceCompute
     Scalar m_kr = Scalar(10.0); //!< Rolling friction spring constant
 
     bool m_log_pair_info = false;
-    std::vector<std::pair<unsigned int, unsigned int>> m_log_pairs;
-    std::vector<vec3<Scalar>> m_log_pair_conserv_forces;
+    Scalar m_gamma = Scalar(0.0); 
 
 #ifdef ENABLE_MPI
     /// The system's communicator.
@@ -295,10 +294,6 @@ HPFPotentialPair<evaluator>::HPFPotentialPair(std::shared_ptr<SystemDefinition> 
             {
             cudaMemAdvise(m_rcutsq.get(),
                           m_rcutsq.getNumElements() * sizeof(Scalar),
-                          cudaMemAdviseSetReadMostly,
-                          0);
-            cudaMemAdvise(m_ronsq.get(),
-                          m_ronsq.getNumElements() * sizeof(Scalar),
                           cudaMemAdviseSetReadMostly,
                           0);
             for (unsigned int idev = 0; idev < m_exec_conf->getNumActiveGPUs(); ++idev)
@@ -761,6 +756,10 @@ template<class evaluator> void HPFPotentialPair<evaluator>::computeForces(uint64
                 auto torque_roll = cross(v_unit_dx, force_roll);
                 torque_i = di * torque_slide + a_ij * torque_roll;
 
+                ti.x += torque_i.x;
+                ti.y += torque_i.y;
+                ti.z += torque_i.z;
+
                 // TODO need to verify that this is the correct, but since we assume the bodies are spherical,
                 // their torques should just as simple as negating the force and multiplying by the other radius
                 if (third_law) 
@@ -816,11 +815,24 @@ template<class evaluator> void HPFPotentialPair<evaluator>::computeForces(uint64
             ++psi_it;
             }
 
+        if (m_gamma != 0.0)
+            {
+            fi.x -= v_i.x * m_gamma;
+            fi.y -= v_i.y * m_gamma;
+            fi.z -= v_i.z * m_gamma;
+            ti.x -= w_i.x * m_gamma;
+            ti.y -= w_i.y * m_gamma;
+            ti.z -= w_i.z * m_gamma;
+            }
+
         // finally, increment the force, potential energy and virial for particle i
         unsigned int mem_idx = i;
         h_force.data[mem_idx].x += fi.x;
         h_force.data[mem_idx].y += fi.y;
         h_force.data[mem_idx].z += fi.z;
+        h_torque.data[mem_idx].x += ti.x;
+        h_torque.data[mem_idx].y += ti.y;
+        h_torque.data[mem_idx].z += ti.z;
         h_force.data[mem_idx].w += pei;
         if (compute_virial)
             {
@@ -872,8 +884,9 @@ template<class T> void export_HPFPotentialPair(pybind11::module& m, const std::s
         .def("getRCut", &HPFPotentialPair<T>::getRCut)
         // .def("_evaluate", &HPFPotentialPair<T>::evaluate)
         .def("slotWriteGSDShapeSpec", &HPFPotentialPair<T>::slotWriteGSDShapeSpec)
-        .def("connectGSDShapeSpec", &HPFPotentialPair<T>::connectGSDShapeSpec);
+        .def("connectGSDShapeSpec", &HPFPotentialPair<T>::connectGSDShapeSpec)
         .def_readwrite("log_pair_info", &HPFPotentialPair<T>::m_log_pair_info)
+        .def_readwrite("gamma", &HPFPotentialPair<T>::m_gamma);
 
     }
 

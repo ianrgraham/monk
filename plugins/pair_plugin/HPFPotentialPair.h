@@ -171,6 +171,9 @@ template<class evaluator> class HPFPotentialPair : public ForceCompute
         return type_shape_mapping;
         }
 
+    bool m_log_pair_info = false;
+    Scalar m_gamma = Scalar(0.0); 
+
     protected:
     std::shared_ptr<NeighborList> m_nlist; //!< The neighborlist to use for the computation
     energyShiftMode m_shift_mode; //!< Store the mode with which to handle the energy shift at r_cut
@@ -212,9 +215,6 @@ template<class evaluator> class HPFPotentialPair : public ForceCompute
     Scalar m_mur = Scalar(0.0); //!< Rolling friction coefficient
     Scalar m_ks = Scalar(10.0); //!< Sliding friction spring constant
     Scalar m_kr = Scalar(10.0); //!< Rolling friction spring constant
-
-    bool m_log_pair_info = false;
-    Scalar m_gamma = Scalar(0.0); 
 
 #ifdef ENABLE_MPI
     /// The system's communicator.

@@ -145,11 +145,58 @@ def uniform_random_snapshot(
     return snapshot
 
 
+def quick_sim(
+        N: int,
+        phi: float,
+        device: hoomd.device.Device,
+        dim: int = 3,
+        particle_types: Optional[List[str]] = None,
+        ratios: Optional[List[int]] = None,
+        diams: Optional[List[float]] = None,
+        seed: int = 0) -> hoomd.Simulation:
+    '''Construct a hoomd simulation using `approx_euclidean_snapshot`.
+    
+    Arguments
+    ---------
+        `N`: Number of particles.
+        `phi`: # density for a cubic (or square) simulation box.
+        `rng`: `numpy` RNG to choose where to place species.
+        `dim`: Physical dimension of the box (default=3).
+        `particle_types`: List of particle labels (default=['A', 'B']).
+        `ratios`: List of particle ratios (default=[50, 50]).
+        `diams`: List of particle diameters for visualization.
+
+    Returns
+    -------
+        `Snapshot`: A valid `hoomd` simulation state.
+    '''
+    
+    rng = np.random.default_rng(seed + 1) # offset rng seed by 1
+
+    sim = hoomd.Simulation(device, seed)
+
+    L = len_from_phi(N, phi, dim)
+
+    snapshot = approx_euclidean_snapshot(
+        N,
+        L,
+        rng,
+        dim,
+        particle_types,
+        ratios,
+        diams)
+    
+    sim.create_state_from_snapshot(snapshot)
+
+    return sim
+
+
+
 def approx_euclidean_snapshot(
         N: int,
         L: float,
         rng: np.random.Generator,
-        dim: int = 2,
+        dim: int = 3,
         particle_types: Optional[List[str]] = None,
         ratios: Optional[List[int]] = None,
         diams: Optional[List[float]] = None) -> gsd.hoomd.Snapshot:
@@ -166,7 +213,7 @@ def approx_euclidean_snapshot(
         `N`: Number of particles.
         `L`: Side length of the simulation box.
         `rng`: `numpy` RNG to choose where to place species.
-        `dim`: Physical dimension of the box (default=2).
+        `dim`: Physical dimension of the box (default=3).
         `particle_types`: List of particle labels (default=['A', 'B']).
         `ratios`: List of particle ratios (default=[50, 50]).
         `diams`: List of particle diameters for visualization.

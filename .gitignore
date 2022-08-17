@@ -36,3 +36,5 @@ build
 *.mp4
 
 workflows/**/root
+
+optix

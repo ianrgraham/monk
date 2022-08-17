@@ -81,6 +81,7 @@ repos:
     # These also need to be removed in setup.cfg
     exclude: |
       (?x)(
+        ^experiemnts/|
         ^hoomd/extern/|
         ^hoomd/mpcd/|
         ^hoomd/metal/

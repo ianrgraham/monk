@@ -3,7 +3,7 @@ import hoomd
 import numpy as np
 import gsd.hoomd
 
-BUFFER=0.1
+BUFFER = 0.1
 
 cpu = hoomd.device.CPU()  # or GPU
 
@@ -33,10 +33,7 @@ pot_pair = hoomd.md.pair.LJ(cell, default_r_cut=2.5)
 pot_pair.params[('A', 'A')] = dict(epsilon=1.0, sigma=1.0)
 integrator.forces.append(pot_pair)
 
-nvt = hoomd.md.methods.NVT(
-    kT=1.5,
-    filter=hoomd.filter.All(),
-    tau=0.5)
+nvt = hoomd.md.methods.NVT(kT=1.5, filter=hoomd.filter.All(), tau=0.5)
 integrator.methods.append(nvt)
 sim.operations.integrator = integrator
 

@@ -6,11 +6,13 @@ import numpy
 
 from hoomd.simulation import Simulation
 
+
 def print_sim_info(sim: Simulation):
     print(sim.state)
     (sim.operations.integrator)
     print(sim.operations.updaters[:])
     print(sim.operations.writers[:])
+
 
 gpu = hoomd.device.GPU()
 
@@ -47,4 +49,3 @@ print(position[0:4])
 position = position[0:N_particles]
 
 orientation = [(1, 0, 0, 0)] * N_particles
-

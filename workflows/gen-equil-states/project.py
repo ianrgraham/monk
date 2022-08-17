@@ -7,6 +7,7 @@ import os.path
 from monk import project_path, project_view, safe_clean_signac_project, grid
 from monk import pair, prep
 
+
 class Project(flow.FlowProject):
     pass
 
@@ -24,9 +25,13 @@ def init_state(job: signac.Project.Job):
 
     rng = prep.init_rng(seed)
     L = prep.len_from_phi(N, phi)
-    snap = prep.approx_euclidean_snapshot(
-        N, L, rng, dim=3, particle_types=["A", "B"], ratios=[80, 20], diams=[1.0, 0.88]
-    )
+    snap = prep.approx_euclidean_snapshot(N,
+                                          L,
+                                          rng,
+                                          dim=3,
+                                          particle_types=["A", "B"],
+                                          ratios=[80, 20],
+                                          diams=[1.0, 0.88])
     sim.create_state_from_snapshot(snap)
 
     hoomd.write.GSD.write(sim.state, job.fn("init.gsd"))
@@ -72,10 +77,7 @@ def run_nvt_sim(job: signac.Project.Job):
     pot_pair = pair.KA_LJ(nlist)
     integrator.forces.append(pot_pair)
 
-    nvt = hoomd.md.methods.NVT(
-    kT=kT,
-    filter=hoomd.filter.All(),
-    tau=0.5)
+    nvt = hoomd.md.methods.NVT(kT=kT, filter=hoomd.filter.All(), tau=0.5)
     integrator.methods.append(nvt)
     sim.operations.integrator = integrator
 
@@ -84,7 +86,6 @@ def run_nvt_sim(job: signac.Project.Job):
     nvt.thermalize_thermostat_dof()
 
     print("Everything is set up")
-
 
     sim.run(equil_steps)
 
@@ -104,7 +105,8 @@ def run_nvt_sim(job: signac.Project.Job):
     job.doc["done"] = True
 
 
-project: Project = Project.init_project(name="GenerateEquilibratedStates", root=project_path("test-signac-gen"))
+project: Project = Project.init_project(name="GenerateEquilibratedStates",
+                                        root=project_path("test-signac-gen"))
 
 # safe_clean_signac_project("test-signac-gen")
 # exit()
@@ -117,14 +119,19 @@ seed = sum([int("init" in job.document) for job in project])
 iterations = 5
 for kT in np.linspace(1.0, 2.0, 5):
     for it in range(iterations):
-        sp = dict(N=512, phi=1.2, kT=float(kT), dt=1e-3, steps=100_000, equil_steps=100_000, iter=it)
+        sp = dict(N=512,
+                  phi=1.2,
+                  kT=float(kT),
+                  dt=1e-3,
+                  steps=100_000,
+                  equil_steps=100_000,
+                  iter=it)
         job = project.open_job(sp).init()
         if "init" not in job.doc:
             print("Hey!")
             job.document["seed"] = project.doc["seed"]
             job.document['init'] = True
             project.doc["seed"] += 1
-        
 
 if __name__ == '__main__':
     project.main()

@@ -2,7 +2,7 @@
 The name here doesn't mean much, but this repo is essentially a collection of ready-to-go scripts and utilities for running simulations using HOOMDv3. Research workflows that depend strictly upon this repository can be found in the `workflows` directory. The workflow manager used here is `Snakemake`.
 
 # Dependencies
-    
+
  - conda >= 4.10
  - direnv >= 2.25
  - pybind11 >= 2.2

@@ -1,5 +1,6 @@
 // Copyright (c) 2009-2021 The Regents of the University of Michigan
-// This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
+// This file is part of the HOOMD-blue project, released under the BSD 3-Clause
+// License.
 
 // Maintainer: joaander
 
@@ -7,8 +8,8 @@
 #define __PAIR_EVALUATOR_HARM_SPRING_H__
 
 #ifndef __HIPCC__
-#include <string>
 #include <optional>
+#include <string>
 #endif
 
 #include "hoomd/HOOMDMath.h"
@@ -18,9 +19,9 @@
     \details HarmSpring Spring potential
 */
 
-// need to declare these class methods with __device__ qualifiers when building in nvcc
-// DEVICE is __host__ __device__ when included in nvcc and blank when included into the host
-// compiler
+// need to declare these class methods with __device__ qualifiers when building
+// in nvcc DEVICE is __host__ __device__ when included in nvcc and blank when
+// included into the host compiler
 #ifdef __HIPCC__
 #define DEVICE __device__
 #define HOSTDEVICE __host__ __device__
@@ -83,9 +84,9 @@ class EvaluatorPairHarmSpring
 #endif
         }
 #ifdef SINGLE_PRECISION
-    __attribute__((aligned(8)));
+        __attribute__((aligned(8)));
 #else
-    __attribute__((aligned(16)));
+        __attribute__((aligned(16)));
 #endif
 
     //! Constructs the pair potential evaluator
@@ -121,8 +122,8 @@ class EvaluatorPairHarmSpring
     DEVICE void setCharge(Scalar qi, Scalar qj) { }
 
     //! Evaluate the force and energy
-    /*! \param force_divr Output parameter to write the computed force divided by r.
-        \param pair_eng Output parameter to write the computed pair energy
+    /*! \param force_divr Output parameter to write the computed force divided by
+       r. \param pair_eng Output parameter to write the computed pair energy
         \param energy_shift If true, the potential must be shifted so that
         V(r) is continuous at the cutoff
         \note There is no need to check if rsq < rcutsq in this method.
@@ -136,15 +137,13 @@ class EvaluatorPairHarmSpring
         // compute the force divided by r in force_divr
         if (rsq < rcutsq && k != 0)
             {
-            
             Scalar r = fast::sqrt(rsq);
             Scalar rinv = Scalar(1.0) / r;
             Scalar term = rcut - r;
 
-            
             force_divr = k * rinv * term;
 
-            pair_eng =  Scalar(0.5) * k * term * term;
+            pair_eng = Scalar(0.5) * k * term * term;
 
             return true;
             }
@@ -152,25 +151,24 @@ class EvaluatorPairHarmSpring
             return false;
         }
 
-    /*! Specialization of the force/energy evaluator for the hard particle friction compute.
+    /*! Specialization of the force/energy evaluator for the hard particle
+       friction compute.
 
-        Saves at least one repeated sqrt and division that is already needed for the HPF 
-        force compute.
+        Saves at least one repeated sqrt and division that is already needed for
+       the HPF force compute.
     */
     DEVICE bool evalForceAndEnergyHPF(Scalar& force_divr, Scalar& pair_eng, Scalar& r, Scalar& rinv)
         {
         // compute the force divided by r in force_divr
         if (rsq < rcutsq && k != 0)
             {
-            
             r = fast::sqrt(rsq);
             rinv = Scalar(1.0) / r;
             Scalar term = rcut - r;
 
-            
             force_divr = k * rinv * term;
 
-            pair_eng =  Scalar(0.5) * k * term * term;
+            pair_eng = Scalar(0.5) * k * term * term;
 
             return true;
             }

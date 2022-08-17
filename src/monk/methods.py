@@ -127,7 +127,7 @@ class NextTrigger(hoomd.trigger.Trigger):
 
 class ConstantShear(hoomd.custom.Action):
     """Apply a constant shear rate to the simulation box.
-    
+
     Arguments
     ---------
     - gamma: float - the shear rate (in units of box ratio per time step)

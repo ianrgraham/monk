@@ -13,6 +13,7 @@ from flow.project import UserConditionError, UserOperationError, SubmitError, \
 
 from monk import project_path, project_view, safe_clean_signac_project, grid
 
+
 class MonkProject(flow.FlowProject):
 
     def _new_main(self, parser=None, subparsers=None, base_parser=None):
@@ -21,8 +22,7 @@ class MonkProject(flow.FlowProject):
         # line interface, we know exactly what the entrypoint path should be:
         # it's the file where main is called, which we can pull off the stack.
         self._entrypoint.setdefault(
-            "path", os.path.realpath(inspect.stack()[-1].filename)
-        )
+            "path", os.path.realpath(inspect.stack()[-1].filename))
 
         if parser is None:
             parser = argparse.ArgumentParser()
@@ -70,7 +70,8 @@ class MonkProject(flow.FlowProject):
             "--profile",
             const=inspect.getsourcefile(inspect.getmodule(self)),
             nargs="?",
-            help="Collect statistics to determine code paths that are responsible "
+            help=
+            "Collect statistics to determine code paths that are responsible "
             "for the majority of runtime required for status determination. "
             "Optionally provide a filename pattern to select for what files "
             "to show result for. Defaults to the main module. "
@@ -81,9 +82,12 @@ class MonkProject(flow.FlowProject):
         parser_next = subparsers.add_parser(
             "next",
             parents=[base_parser],
-            description="Determine jobs that are eligible for a specific operation.",
+            description=
+            "Determine jobs that are eligible for a specific operation.",
         )
-        parser_next.add_argument("name", type=str, help="The name of the operation.")
+        parser_next.add_argument("name",
+                                 type=str,
+                                 help="The name of the operation.")
         parser_next.set_defaults(func=self._main_next)
 
         parser_run = subparsers.add_parser(
@@ -107,7 +111,8 @@ class MonkProject(flow.FlowProject):
             "--num-passes",
             type=int,
             default=1,
-            help="Specify how many times a particular job-operation may be executed within one "
+            help=
+            "Specify how many times a particular job-operation may be executed within one "
             "session (default=1). This is to prevent accidental infinite loops, "
             "where operations are executed indefinitely, because postconditions "
             "were not properly set. Use -1 to allow for an infinite number of passes.",
@@ -116,12 +121,14 @@ class MonkProject(flow.FlowProject):
             "-t",
             "--timeout",
             type=float,
-            help="A timeout in seconds after which the execution of one operation is canceled.",
+            help=
+            "A timeout in seconds after which the execution of one operation is canceled.",
         )
         execution_group.add_argument(
             "--switch-to-project-root",
             action="store_true",
-            help="Temporarily add the current working directory to the python search path and "
+            help=
+            "Temporarily add the current working directory to the python search path and "
             "switch to the root directory prior to execution.",
         )
         execution_group.add_argument(
@@ -130,7 +137,8 @@ class MonkProject(flow.FlowProject):
             type=int,
             nargs="?",
             const="-1",
-            help="Specify the number of cores to parallelize to. Defaults to all available "
+            help=
+            "Specify the number of cores to parallelize to. Defaults to all available "
             "processing units.",
         )
         execution_group.add_argument(
@@ -138,7 +146,8 @@ class MonkProject(flow.FlowProject):
             type=str,
             choices=["none", "by-job", "cyclic", "random"],
             default=None,
-            help="Specify the execution order of operations for each execution pass.",
+            help=
+            "Specify the execution order of operations for each execution pass.",
         )
         execution_group.add_argument(
             "--ignore-conditions",
@@ -157,8 +166,7 @@ class MonkProject(flow.FlowProject):
         )
         self._add_submit_args(parser_submit)
         env_group = parser_submit.add_argument_group(
-            f"{self._environment.__name__} options"
-        )
+            f"{self._environment.__name__} options")
         self._environment.add_args(env_group)
         parser_submit.set_defaults(func=self._main_submit)
         print(
@@ -194,7 +202,8 @@ class MonkProject(flow.FlowProject):
         # Manually 'merge' the various global options defined for both the main parser
         # and the parent parser that are shared by all subparsers:
         for dest in ("verbose", "show_traceback", "debug"):
-            setattr(args, dest, getattr(args, "main_" + dest) or getattr(args, dest))
+            setattr(args, dest,
+                    getattr(args, "main_" + dest) or getattr(args, dest))
             delattr(args, "main_" + dest)
 
         # Read the config file and set the internal flag.
@@ -219,12 +228,14 @@ class MonkProject(flow.FlowProject):
         logging.basicConfig(level=max(0, logging.WARNING - 10 * args.verbose))
 
         def _show_traceback_and_exit(error):
-            is_user_error = isinstance(error, (UserOperationError, UserConditionError))
+            is_user_error = isinstance(
+                error, (UserOperationError, UserConditionError))
             if is_user_error:
                 # Always show the user traceback cause.
                 error = error.__cause__
             if args.show_traceback or is_user_error:
-                traceback.print_exception(type(error), error, error.__traceback__)
+                traceback.print_exception(type(error), error,
+                                          error.__traceback__)
             if not args.show_traceback:
                 print(
                     "Execute with '--show-traceback' or '--debug' to show the "
@@ -278,7 +289,6 @@ class MonkProject(flow.FlowProject):
                 )
             _show_traceback_and_exit(error)
 
-
     def _main_init(self, args):
 
         steps = args.steps
@@ -295,9 +305,9 @@ class MonkProject(flow.FlowProject):
             num_iter = 1
         else:
             num_iter = 5
-        
+
         project = self
-        
+
         if "initialized" not in project.doc:
             print("Initializing project")
             project.doc["initialized"] = True
@@ -310,13 +320,19 @@ class MonkProject(flow.FlowProject):
         # Initialize the data space
 
         statepoint_grid_ka_lj = {
-            "it": range(num_iter), 
+            "it": range(num_iter),
             "phi": [1.0, 1.1, 1.2, 1.3, 1.35],
             "A_frac": [80, 70, 60]
         }
 
         for sp in grid(statepoint_grid_ka_lj):
-            universal = dict(N=512, init_kT=1.4, final_kT=0.4, dt=2.5e-3, steps=steps, equil_steps=equil_steps, dumps=100)
+            universal = dict(N=512,
+                             init_kT=1.4,
+                             final_kT=0.4,
+                             dt=2.5e-3,
+                             steps=steps,
+                             equil_steps=equil_steps,
+                             dumps=100)
             sp.update(universal)
             job = project.open_job(sp).init()
             if "init" not in job.doc:
@@ -379,7 +395,6 @@ class MonkProject(flow.FlowProject):
             help="Run parameters for testing",
         )
         parser_init.set_defaults(func=self._main_init)
-        
 
         parser_clear = subparsers.add_parser(
             "clear",
@@ -388,5 +403,6 @@ class MonkProject(flow.FlowProject):
         )
         parser_clear.set_defaults(func=self._main_clear)
 
-
-        self._new_main(parser=parser, subparsers=subparsers, base_parser=base_parser)
+        self._new_main(parser=parser,
+                       subparsers=subparsers,
+                       base_parser=base_parser)

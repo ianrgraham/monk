@@ -41,7 +41,7 @@ def cond_flag(cond, flag):
 
 
 rule all:
-    input: 
+    input:
         *gen_all()
 
 rule minimize_fire:

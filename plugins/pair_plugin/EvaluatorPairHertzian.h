@@ -1,5 +1,6 @@
 // Copyright (c) 2009-2021 The Regents of the University of Michigan
-// This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
+// This file is part of the HOOMD-blue project, released under the BSD 3-Clause
+// License.
 
 // Maintainer: joaander
 
@@ -17,9 +18,9 @@
     \details Modified version of the LJ potential
 */
 
-// need to declare these class methods with __device__ qualifiers when building in nvcc
-// DEVICE is __host__ __device__ when included in nvcc and blank when included into the host
-// compiler
+// need to declare these class methods with __device__ qualifiers when building
+// in nvcc DEVICE is __host__ __device__ when included in nvcc and blank when
+// included into the host compiler
 #ifdef __HIPCC__
 #define DEVICE __device__
 #define HOSTDEVICE __host__ __device__
@@ -82,9 +83,9 @@ class EvaluatorPairHertzian
 #endif
         }
 #ifdef SINGLE_PRECISION
-    __attribute__((aligned(8)));
+        __attribute__((aligned(8)));
 #else
-    __attribute__((aligned(16)));
+        __attribute__((aligned(16)));
 #endif
 
     //! Constructs the pair potential evaluator
@@ -120,28 +121,26 @@ class EvaluatorPairHertzian
     DEVICE void setCharge(Scalar qi, Scalar qj) { }
 
     //! Evaluate the force and energy
-    /*! \param force_divr Output parameter to write the computed force divided by r.
-        \param pair_eng Output parameter to write the computed pair energy
-        \param energy_shift If true, the potential must be shifted so that
-        V(r) is continuous at the cutoff
-        \note There is no need to check if rsq < rcutsq in this method.
-        Cutoff tests are performed in PotentialPair.
+    /*! \param force_divr Output parameter to write the computed force
+       divided by r. \param pair_eng Output parameter to write the
+       computed pair energy \param energy_shift If true, the potential
+       must be shifted so that V(r) is continuous at the cutoff \note
+       There is no need to check if rsq < rcutsq in this method. Cutoff
+       tests are performed in PotentialPair.
 
-        \return True if they are evaluated or false if they are not because
-        we are beyond the cutoff
+        \return True if they are evaluated or false if they are not
+       because we are beyond the cutoff
     */
     DEVICE bool evalForceAndEnergy(Scalar& force_divr, Scalar& pair_eng, bool energy_shift)
         {
         // compute the force divided by r in force_divr
         if (rsq < rcutsq && eps != 0)
             {
-            
             Scalar r = fast::sqrt(rsq);
             Scalar rinv = Scalar(1.0) / r;
             Scalar term = Scalar(1.0) - r * siginv;
             Scalar sqrt_term = fast::sqrt(term);
 
-            
             force_divr = eps * siginv * rinv * term * sqrt_term;
 
             pair_eng = 0.4 * eps * term * term * sqrt_term;

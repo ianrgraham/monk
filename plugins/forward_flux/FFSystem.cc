@@ -6,29 +6,37 @@ const uint64_t MAX_STEPS = 1000000;
 namespace hoomd
     {
 
-std::optional<int> optionalInt(int x, bool b) {
-    if (b) {
+std::optional<int> optionalInt(int x, bool b)
+    {
+    if (b)
+        {
         return x;
-    }
-    else {
+        }
+    else
+        {
         return {};
+        }
     }
-}
 
-Scalar propensity(uint32_t pid, uint32_t mapped_pid, SnapshotParticleData<Scalar>& ref_snap, ParticleData* cur_pdata)
+Scalar propensity(uint32_t pid,
+                  uint32_t mapped_pid,
+                  SnapshotParticleData<Scalar>& ref_snap,
+                  ParticleData* cur_pdata)
     {
     // rtags are a map from tags to indices
     // tags are a map from indices to tags
     // mapped_pid is the index of the particle in the current snapshot associated with the tag pid
 
-    // so scratch what I said before. It appear that the SnapshotParticleData object sorts all of the data by tag
-    // so there is no need to do a lookup by index.
+    // so scratch what I said before. It appear that the SnapshotParticleData object sorts all of
+    // the data by tag so there is no need to do a lookup by index.
 
     // so we get the index in the current frame of the pid with the rtags array
-    auto idx = ArrayHandle<unsigned int>(cur_pdata->getRTags(),
-        access_location::host, access_mode::read).data[pid];
-    auto local_pos = ArrayHandle<Scalar4>(cur_pdata->getPositions(),
-        access_location::host, access_mode::read).data[idx];
+    auto idx
+        = ArrayHandle<unsigned int>(cur_pdata->getRTags(), access_location::host, access_mode::read)
+              .data[pid];
+    auto local_pos
+        = ArrayHandle<Scalar4>(cur_pdata->getPositions(), access_location::host, access_mode::read)
+              .data[idx];
     auto cur_pos = vec3<Scalar>(local_pos.x, local_pos.y, local_pos.z);
     auto box = cur_pdata->getBox();
 
@@ -37,21 +45,24 @@ Scalar propensity(uint32_t pid, uint32_t mapped_pid, SnapshotParticleData<Scalar
     return fast::sqrt(dot(pos_diff, pos_diff));
     }
 
-std::vector<Scalar> sys_propensity(SnapshotParticleData<Scalar>& ref_snap, std::map<unsigned int, unsigned int>& ref_map, ParticleData* cur_pdata)
+std::vector<Scalar> sys_propensity(SnapshotParticleData<Scalar>& ref_snap,
+                                   std::map<unsigned int, unsigned int>& ref_map,
+                                   ParticleData* cur_pdata)
     {
     auto box = cur_pdata->getBox();
     unsigned n_tot_particles = cur_pdata->getN();
 
-    std::vector<Scalar> output{};
+    std::vector<Scalar> output {};
     output.reserve(n_tot_particles);
-    
+
     // get the rtags array
     auto rtags = ArrayHandle<unsigned int>(cur_pdata->getRTags(),
-        access_location::host, access_mode::read);
+                                           access_location::host,
+                                           access_mode::read);
 
     // get the positions array
-    auto pos = ArrayHandle<Scalar4>(cur_pdata->getPositions(),
-        access_location::host, access_mode::read);
+    auto pos
+        = ArrayHandle<Scalar4>(cur_pdata->getPositions(), access_location::host, access_mode::read);
 
     for (unsigned int i = 0; i < n_tot_particles; i++)
         {
@@ -59,7 +70,8 @@ std::vector<Scalar> sys_propensity(SnapshotParticleData<Scalar>& ref_snap, std::
         auto idx = rtags.data[i];
         auto local_pos = pos.data[idx];
         auto cur_pos = vec3<Scalar>(local_pos.x, local_pos.y, local_pos.z);
-        // grab the index for tag 'i' in the reference snapshot, use i since ref_snap is already sorted by tag
+        // grab the index for tag 'i' in the reference snapshot, use i since ref_snap is already
+        // sorted by tag
         auto ref_pos = ref_snap.pos[i];
         vec3<Scalar> pos_diff = box.minImage(cur_pos - ref_pos);
         output.push_back(fast::sqrt(dot(pos_diff, pos_diff)));
@@ -68,13 +80,16 @@ std::vector<Scalar> sys_propensity(SnapshotParticleData<Scalar>& ref_snap, std::
     }
 
 FFSystem::FFSystem(std::shared_ptr<SystemDefinition> sysdef, uint64_t initial_tstep, uint32_t pid)
-    : System(sysdef, initial_tstep), m_order_param(propensity), m_sys_order_param(sys_propensity), m_pid(pid)
+    : System(sysdef, initial_tstep), m_order_param(propensity), m_sys_order_param(sys_propensity),
+      m_pid(pid)
     {
     }
 
-std::pair<std::optional<std::shared_ptr<SnapshotSystemData<Scalar>>>, Scalar> FFSystem::runFFTrial(const Scalar barrier, const std::shared_ptr<SnapshotSystemData<Scalar>> snapshot, bool reset_tstep)
+std::pair<std::optional<std::shared_ptr<SnapshotSystemData<Scalar>>>, Scalar>
+FFSystem::runFFTrial(const Scalar barrier,
+                     const std::shared_ptr<SnapshotSystemData<Scalar>> snapshot,
+                     bool reset_tstep)
     {
-
     m_sysdef->initializeFromSnapshot(snapshot);
     updateGroupDOFOnNextStep();
     auto old_time = m_cur_tstep;
@@ -84,8 +99,8 @@ std::pair<std::optional<std::shared_ptr<SnapshotSystemData<Scalar>>>, Scalar> FF
 
     auto op = computeOrderParameter();
     auto max_op = op;
-    // std::cout << "Starting op: " << op << std::endl; 
-    
+    // std::cout << "Starting op: " << op << std::endl;
+
 #ifdef ENABLE_MPI
     if (m_sysdef->isDomainDecomposed())
         {
@@ -105,7 +120,7 @@ std::pair<std::optional<std::shared_ptr<SnapshotSystemData<Scalar>>>, Scalar> FF
     auto idx = 0;
     while (true)
         {
-        // std::cout << "Loop idx: " << idx << ". Op: " << computeOrderParameter() << std::endl; 
+        // std::cout << "Loop idx: " << idx << ". Op: " << computeOrderParameter() << std::endl;
         if (op < m_basin_barrier)
             {
             if (reset_tstep)
@@ -143,7 +158,7 @@ std::pair<std::optional<std::shared_ptr<SnapshotSystemData<Scalar>>>, Scalar> FF
                 }
             }
 
-        // std::cout << "Update idx: " << idx << ". Op: " << computeOrderParameter() << std::endl; 
+        // std::cout << "Update idx: " << idx << ". Op: " << computeOrderParameter() << std::endl;
 
         if (m_update_group_dof_next_step)
             {
@@ -160,12 +175,14 @@ std::pair<std::optional<std::shared_ptr<SnapshotSystemData<Scalar>>>, Scalar> FF
         if (m_integrator)
             m_integrator->update(rand());
 
-        // std::cout << "Integration idx: " << idx << ". Op: " << computeOrderParameter() << std::endl; 
+        // std::cout << "Integration idx: " << idx << ". Op: " << computeOrderParameter() <<
+        // std::endl;
 
         op = computeOrderParameter();
-        if (op > max_op) {
+        if (op > max_op)
+            {
             max_op = op;
-        }
+            }
 
         m_cur_tstep++;
         idx++;
@@ -182,12 +199,11 @@ std::pair<std::optional<std::shared_ptr<SnapshotSystemData<Scalar>>>, Scalar> FF
             {
             throw pybind11::error_already_set();
             }
-
         }
-
     }
 
-std::vector<std::shared_ptr<SnapshotSystemData<Scalar>>> FFSystem::sampleBasinForwardFluxes(uint64_t nsteps)
+std::vector<std::shared_ptr<SnapshotSystemData<Scalar>>>
+FFSystem::sampleBasinForwardFluxes(uint64_t nsteps)
     {
     std::vector<std::shared_ptr<SnapshotSystemData<Scalar>>> result = {};
 
@@ -195,7 +211,7 @@ std::vector<std::shared_ptr<SnapshotSystemData<Scalar>>> FFSystem::sampleBasinFo
 
     m_sysdef->getParticleData()->setFlags(determineFlags(m_cur_tstep));
     resetStats();
-    
+
 #ifdef ENABLE_MPI
     if (m_sysdef->isDomainDecomposed())
         {
@@ -265,13 +281,12 @@ std::vector<std::shared_ptr<SnapshotSystemData<Scalar>>> FFSystem::sampleBasinFo
         }
 
     // m_cur_tstep = old_time;
-    
+
     return result;
     }
 
 void FFSystem::simpleRun(uint64_t nsteps)
     {
-
     // run the steps
     for (uint64_t count = 0; count < nsteps; count++)
         {
@@ -314,13 +329,12 @@ void FFSystem::simpleRun(uint64_t nsteps)
             if ((*analyzer->getTrigger())(m_cur_tstep))
                 analyzer->analyze(m_cur_tstep);
             }
-
         }
     }
 
 std::vector<Scalar> FFSystem::sampleBasin(uint64_t nsteps, uint64_t period)
     {
-    auto n_writes = nsteps/period;
+    auto n_writes = nsteps / period;
     std::vector<Scalar> result;
     result.reserve(n_writes);
 
@@ -351,10 +365,11 @@ std::vector<Scalar> FFSystem::sampleBasin(uint64_t nsteps, uint64_t period)
         m_integrator->prepRun(m_cur_tstep);
         }
 
-    for (int i = 0; i < n_writes; i++) {
+    for (int i = 0; i < n_writes; i++)
+        {
         simpleRun(period);
         result.push_back(computeOrderParameter());
-    }
+        }
 
     // updateTPS();
 
@@ -366,12 +381,11 @@ std::vector<Scalar> FFSystem::sampleBasin(uint64_t nsteps, uint64_t period)
     // m_cur_tstep = old_time;
 
     return result;
-    
     }
 
 std::vector<std::vector<Scalar>> FFSystem::sampleAllBasins(uint64_t nsteps, uint64_t period)
     {
-    auto n_writes = nsteps/period;
+    auto n_writes = nsteps / period;
     std::vector<std::vector<Scalar>> result;
     result.reserve(n_writes);
 
@@ -402,10 +416,11 @@ std::vector<std::vector<Scalar>> FFSystem::sampleAllBasins(uint64_t nsteps, uint
         m_integrator->prepRun(m_cur_tstep);
         }
 
-    for (int i = 0; i < n_writes; i++) {
+    for (int i = 0; i < n_writes; i++)
+        {
         simpleRun(period);
         result.push_back(computeSysOrderParameter());
-    }
+        }
 
     // updateTPS();
 
@@ -417,7 +432,6 @@ std::vector<std::vector<Scalar>> FFSystem::sampleAllBasins(uint64_t nsteps, uint
     // m_cur_tstep = old_time;
 
     return result;
-    
     }
 
 void FFSystem::setRefSnapshot()
@@ -463,9 +477,10 @@ std::vector<Scalar> FFSystem::computeSysOrderParameter()
 void FFSystem::setPID(uint32_t pid)
     {
     m_pid = pid;
-    if (m_ref_map) {
+    if (m_ref_map)
+        {
         m_mapped_pid = m_ref_map->at(m_pid);
-    }
+        }
     }
 
 namespace detail
@@ -486,8 +501,7 @@ void export_FFSystem(pybind11::module& m)
         .def("computeOrderParameter", &FFSystem::computeOrderParameter)
         .def("setPID", &FFSystem::setPID)
         .def("getMappedPID", &FFSystem::getMappedPID)
-        .def("getRefMap", &FFSystem::getRefMap)
-        ;
+        .def("getRefMap", &FFSystem::getRefMap);
     }
 
     } // end namespace detail

@@ -9,12 +9,13 @@ import argparse
 from monk import project_path, project_view, safe_clean_signac_project, grid
 from monk import pair, prep, methods
 
+
 class Project(flow.FlowProject):
 
     def _main_init(self):
-        
+
         project = self
-        
+
         if "initialized" not in project.doc:
             print("Initializing project")
             project.doc["initialized"] = True
@@ -27,13 +28,19 @@ class Project(flow.FlowProject):
         # Initialize the data space
 
         statepoint_grid_ka_lj = {
-            "it": range(5), 
+            "it": range(5),
             "phi": [1.0, 1.1, 1.15, 1.2, 1.3],
             "A_frac": [80, 75, 70, 65, 60]
         }
 
         for sp in grid(statepoint_grid_ka_lj):
-            universal = dict(N=512, init_kT=1.4, final_kT=0.4, dt=2.5e-3, steps=1_000_000, equil_steps=100_000, dumps=10)
+            universal = dict(N=512,
+                             init_kT=1.4,
+                             final_kT=0.4,
+                             dt=2.5e-3,
+                             steps=1_000_000,
+                             equil_steps=100_000,
+                             dumps=10)
             sp = sp.update(universal)
             job = project.open_job(sp).init()
             if "init" not in job.doc:
@@ -77,13 +84,15 @@ def init_state(job: signac.Project.Job):
     device = hoomd.device.auto_select()
     sim = hoomd.Simulation(device, seed=seed)
 
-    
-
     rng = prep.init_rng(seed)
     L = prep.len_from_phi(N, phi)
-    snap = prep.approx_euclidean_snapshot(
-        N, L, rng, dim=3, particle_types=["A", "B"], ratios=[A_frac, 100-A_frac], diams=[1.0, 0.88]
-    )
+    snap = prep.approx_euclidean_snapshot(N,
+                                          L,
+                                          rng,
+                                          dim=3,
+                                          particle_types=["A", "B"],
+                                          ratios=[A_frac, 100 - A_frac],
+                                          diams=[1.0, 0.88])
     sim.create_state_from_snapshot(snap)
 
     hoomd.write.GSD.write(sim.state, job.fn("init.gsd"))
@@ -118,11 +127,9 @@ def run_nvt_sim(job: signac.Project.Job):
 
     kT_variant = hoomd.variant.Ramp(init_kT, final_kT, tstart, tramp)
 
-    nvt = hoomd.md.methods.NVT(
-        kT=kT_variant,
-        filter=hoomd.filter.All(),
-        tau=0.5
-    )
+    nvt = hoomd.md.methods.NVT(kT=kT_variant,
+                               filter=hoomd.filter.All(),
+                               tau=0.5)
 
     integrator.methods.append(nvt)
     sim.operations.integrator = integrator
@@ -134,16 +141,17 @@ def run_nvt_sim(job: signac.Project.Job):
 
     gsd_writer = hoomd.write.GSD(
         filename=job.fn("traj.gsd"),
-        trigger=hoomd.trigger.Periodic(steps/dumps, phase=sim.timestep),
+        trigger=hoomd.trigger.Periodic(steps / dumps, phase=sim.timestep),
         mode='wb',
         filter=hoomd.filter.All(),
     )
 
     sim.operations.writers.append(gsd_writer)
 
-    sim.run(steps+1)
+    sim.run(steps + 1)
 
     job.doc["simulated"] = True
+
 
 @Project.operation
 @Project.pre.after(run_nvt_sim)
@@ -152,7 +160,8 @@ def validate(job: signac.Project.Job):
     pass
 
 
-project: Project = Project.init_project(name="GenGlassStates3D", root=project_path("initial-configs/3d-glass"))
+project: Project = Project.init_project(
+    name="GenGlassStates3D", root=project_path("initial-configs/3d-glass"))
 
 if __name__ == '__main__':
     project.main()

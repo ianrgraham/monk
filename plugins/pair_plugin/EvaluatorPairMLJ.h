@@ -1,5 +1,6 @@
 // Copyright (c) 2009-2021 The Regents of the University of Michigan
-// This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
+// This file is part of the HOOMD-blue project, released under the BSD 3-Clause
+// License.
 
 // Maintainer: joaander
 
@@ -18,9 +19,9 @@
     \details Modified version of the LJ potential
 */
 
-// need to declare these class methods with __device__ qualifiers when building in nvcc
-// DEVICE is __host__ __device__ when included in nvcc and blank when included into the host
-// compiler
+// need to declare these class methods with __device__ qualifiers when building
+// in nvcc DEVICE is __host__ __device__ when included in nvcc and blank when
+// included into the host compiler
 #ifdef __HIPCC__
 #define DEVICE __device__
 #define HOSTDEVICE __host__ __device__
@@ -37,80 +38,97 @@ namespace md
 /*! <b>Original</b>
     <b>General Overview</b>
 
-    EvaluatorPairLJ is a low level computation class that computes the LJ pair potential V(r). As
-   the standard MD potential, it also serves as a well documented example of how to write additional
-   pair potentials. "Standard" pair potentials in hoomd are all handled via the template class
-   PotentialPair. PotentialPair takes a potential evaluator as a template argument. In this way, all
-   the complicated data management and other details of computing the pair force and potential on
-   every single particle is only written once in the template class and the difference V(r)
-   potentials that can be calculated are simply handled with various evaluator classes. Template
-   instantiation is equivalent to inlining code, so there is no performance loss.
+    EvaluatorPairLJ is a low level computation class that computes the
+   LJ pair potential V(r). As the standard MD potential, it also serves
+   as a well documented example of how to write additional pair
+   potentials. "Standard" pair potentials in hoomd are all handled via
+   the template class PotentialPair. PotentialPair takes a potential
+   evaluator as a template argument. In this way, all the complicated
+   data management and other details of computing the pair force and
+   potential on every single particle is only written once in the
+   template class and the difference V(r) potentials that can be
+   calculated are simply handled with various evaluator classes.
+   Template instantiation is equivalent to inlining code, so there is no
+   performance loss.
 
-    In hoomd, a "standard" pair potential is defined as V(rsq, rcutsq, params, di, dj, qi, qj),
-   where rsq is the squared distance between the two particles, rcutsq is the cutoff radius at which
-   the potential goes to 0, params is any number of per type-pair parameters, di, dj are the
-   diameters of particles i and j, and qi, qj are the charges of particles i and j respectively.
+    In hoomd, a "standard" pair potential is defined as V(rsq, rcutsq,
+   params, di, dj, qi, qj), where rsq is the squared distance between
+   the two particles, rcutsq is the cutoff radius at which the potential
+   goes to 0, params is any number of per type-pair parameters, di, dj
+   are the diameters of particles i and j, and qi, qj are the charges of
+   particles i and j respectively.
 
-    Diameter and charge are not always needed by a given pair evaluator, so it must provide the
-   functions needsDiameter() and needsCharge() which return boolean values signifying if they need
-   those quantities or not. A false return value notifies PotentialPair that it need not even load
-   those values from memory, boosting performance.
+    Diameter and charge are not always needed by a given pair evaluator,
+   so it must provide the functions needsDiameter() and needsCharge()
+   which return boolean values signifying if they need those quantities
+   or not. A false return value notifies PotentialPair that it need not
+   even load those values from memory, boosting performance.
 
-    If needsDiameter() returns true, a setDiameter(Scalar di, Scalar dj) method will be called to
-   set the two diameters. Similarly, if needsCharge() returns true, a setCharge(Scalar qi, Scalar
-   qj) method will be called to set the two charges.
+    If needsDiameter() returns true, a setDiameter(Scalar di, Scalar dj)
+   method will be called to set the two diameters. Similarly, if
+   needsCharge() returns true, a setCharge(Scalar qi, Scalar qj) method
+   will be called to set the two charges.
 
-    All other arguments are common among all pair potentials and passed into the constructor.
-   Coefficients are handled in a special way: the pair evaluator class (and PotentialPair) manage
-   only a single parameter variable for each type pair. Pair potentials that need more than 1
-   parameter can specify that their param_type be a compound structure and reference that. For
-   coalesced read performance on G200 GPUs, it is highly recommended that param_type is one of the
+    All other arguments are common among all pair potentials and passed
+   into the constructor. Coefficients are handled in a special way: the
+   pair evaluator class (and PotentialPair) manage only a single
+   parameter variable for each type pair. Pair potentials that need more
+   than 1 parameter can specify that their param_type be a compound
+   structure and reference that. For coalesced read performance on G200
+   GPUs, it is highly recommended that param_type is one of the
    following types: Scalar, Scalar2, Scalar4.
 
-    The program flow will proceed like this: When a potential between a pair of particles is to be
-   evaluated, a PairEvaluator is instantiated, passing the common parameters to the constructor and
-   calling setDiameter() and/or setCharge() if need be. Then, the evalForceAndEnergy() method is
-   called to evaluate the force and energy (more on that later). Thus, the evaluator must save all
-   of the values it needs to compute the force and energy in member variables.
+    The program flow will proceed like this: When a potential between a
+   pair of particles is to be evaluated, a PairEvaluator is
+   instantiated, passing the common parameters to the constructor and
+   calling setDiameter() and/or setCharge() if need be. Then, the
+   evalForceAndEnergy() method is called to evaluate the force and
+   energy (more on that later). Thus, the evaluator must save all of the
+   values it needs to compute the force and energy in member variables.
 
-    evalForceAndEnergy() makes the necessary computations and sets the out parameters with the
-   computed values. Specifically after the method completes, \a force_divr must be set to the value
-    \f$ -\frac{1}{r}\frac{\partial V}{\partial r}\f$ and \a pair_eng must be set to the value \f$
-   V(r) \f$ if \a energy_shift is false or \f$ V(r) - V(r_{\mathrm{cut}}) \f$ if \a energy_shift is
-   true.
+    evalForceAndEnergy() makes the necessary computations and sets the
+   out parameters with the computed values. Specifically after the
+   method completes, \a force_divr must be set to the value \f$
+   -\frac{1}{r}\frac{\partial V}{\partial r}\f$ and \a pair_eng must be
+   set to the value \f$ V(r) \f$ if \a energy_shift is false or \f$ V(r)
+   - V(r_{\mathrm{cut}}) \f$ if \a energy_shift is true.
 
-    A pair potential evaluator class is also used on the GPU. So all of its members must be declared
-   with the DEVICE keyword before them to mark them __device__ when compiling in nvcc and blank
-   otherwise. If any other code needs to diverge between the host and device (i.e., to use a special
-   math function like __powf on the device), it can similarly be put inside an ifdef __HIPCC__
-   block.
+    A pair potential evaluator class is also used on the GPU. So all of
+   its members must be declared with the DEVICE keyword before them to
+   mark them
+   __device__ when compiling in nvcc and blank otherwise. If any other
+   code needs to diverge between the host and device (i.e., to use a
+   special math function like __powf on the device), it can similarly be
+   put inside an ifdef
+   __HIPCC__ block.
 
     <b>LJ specifics</b>
 
     EvaluatorPairLJ evaluates the function:
-    \f[ V_{\mathrm{LJ}}(r) = 4 \varepsilon \left[ \left( \frac{\sigma}{r} \right)^{12} -
-                                            \left( \frac{\sigma}{r} \right)^{6} \right] \f]
-    broken up as follows for efficiency
-    \f[ V_{\mathrm{LJ}}(r) = r^{-6} \cdot \left( 4 \varepsilon \sigma^{12} \cdot r^{-6} -
-                                            4 \varepsilon \sigma^{6} \right) \f]
-    . Similarly,
-    \f[ -\frac{1}{r} \frac{\partial V_{\mathrm{LJ}}}{\partial r} = r^{-2} \cdot r^{-6} \cdot
-            \left( 12 \cdot 4 \varepsilon \sigma^{12} \cdot r^{-6} - 6 \cdot 4 \varepsilon
-   \sigma^{6} \right) \f]
+    \f[ V_{\mathrm{LJ}}(r) = 4 \varepsilon \left[ \left(
+   \frac{\sigma}{r} \right)^{12} - \left( \frac{\sigma}{r} \right)^{6}
+   \right] \f] broken up as follows for efficiency \f[
+   V_{\mathrm{LJ}}(r) = r^{-6} \cdot \left( 4 \varepsilon \sigma^{12}
+   \cdot r^{-6} - 4 \varepsilon \sigma^{6} \right) \f] . Similarly, \f[
+   -\frac{1}{r} \frac{\partial V_{\mathrm{LJ}}}{\partial r} = r^{-2}
+   \cdot r^{-6} \cdot \left( 12 \cdot 4 \varepsilon \sigma^{12} \cdot
+   r^{-6} - 6 \cdot 4 \varepsilon \sigma^{6} \right) \f]
 
-    The LJ potential does not need diameter or charge. Two parameters are specified and stored in a
-   Scalar2. \a lj1 is placed in \a params.x and \a lj2 is in \a params.y.
+    The LJ potential does not need diameter or charge. Two parameters
+   are specified and stored in a Scalar2. \a lj1 is placed in \a
+   params.x and \a lj2 is in \a params.y.
 
-    These are related to the standard lj parameters sigma and epsilon by:
+    These are related to the standard lj parameters sigma and epsilon
+   by:
     - \a lj1 = 4.0 * epsilon * pow(sigma,12.0)
     - \a lj2 = 4.0 * epsilon * pow(sigma,6.0);
 
     <b>Modifications</b>
-    We modify the LJ potential slightly to instead evaluate the function:
-    \f[ V_{\mathrm{LJ}}(r) = 4 \varepsilon \left[ \left( \frac{\sigma'}{r-\Delta} \right)^{12} -
-                                            \left( \frac{\sigma'}{r-\Delta} \right)^{6} \right] \f]
-    where
-    \f[ \sigma' = \sigma - \frac{\Delta}{2^{1/6}} \f]
+    We modify the LJ potential slightly to instead evaluate the
+   function: \f[ V_{\mathrm{LJ}}(r) = 4 \varepsilon \left[ \left(
+   \frac{\sigma'}{r-\Delta} \right)^{12} - \left(
+   \frac{\sigma'}{r-\Delta} \right)^{6} \right] \f] where \f[ \sigma' =
+   \sigma - \frac{\Delta}{2^{1/6}} \f]
 
     This is similar to the LJ expand potential from LAMMPS, though
 
@@ -173,9 +191,9 @@ class EvaluatorPairMLJ
 #endif
         }
 #ifdef SINGLE_PRECISION
-    __attribute__((aligned(8)));
+        __attribute__((aligned(8)));
 #else
-    __attribute__((aligned(16)));
+        __attribute__((aligned(16)));
 #endif
 
     //! Constructs the pair potential evaluator
@@ -211,15 +229,15 @@ class EvaluatorPairMLJ
     DEVICE void setCharge(Scalar qi, Scalar qj) { }
 
     //! Evaluate the force and energy
-    /*! \param force_divr Output parameter to write the computed force divided by r.
-        \param pair_eng Output parameter to write the computed pair energy
-        \param energy_shift If true, the potential must be shifted so that
-        V(r) is continuous at the cutoff
-        \note There is no need to check if rsq < rcutsq in this method.
-        Cutoff tests are performed in PotentialPair.
+    /*! \param force_divr Output parameter to write the computed force
+       divided by r. \param pair_eng Output parameter to write the
+       computed pair energy \param energy_shift If true, the potential
+       must be shifted so that V(r) is continuous at the cutoff \note
+       There is no need to check if rsq < rcutsq in this method. Cutoff
+       tests are performed in PotentialPair.
 
-        \return True if they are evaluated or false if they are not because
-        we are beyond the cutoff
+        \return True if they are evaluated or false if they are not
+       because we are beyond the cutoff
     */
     DEVICE bool evalForceAndEnergy(Scalar& force_divr, Scalar& pair_eng, bool energy_shift)
         {
@@ -253,7 +271,7 @@ class EvaluatorPairMLJ
         else
             return false;
         }
-    
+
     DEVICE Scalar evalPressureLRCIntegral()
         {
         return 0;
@@ -282,10 +300,13 @@ class EvaluatorPairMLJ
     protected:
     Scalar rsq;    //!< Stored rsq from the constructor
     Scalar rcutsq; //!< Stored rcutsq from the constructor
-    Scalar lj1;    //!< lj1 parameter extracted from the params passed to the constructor
-    Scalar lj2;    //!< lj2 parameter extracted from the params passed to the constructor
+    Scalar lj1;    //!< lj1 parameter extracted from the params passed to
+                   //!< the constructor
+    Scalar lj2;    //!< lj2 parameter extracted from the params passed to
+                   //!< the constructor
     // Add any additional fields
-    Scalar dlt; //!< dlt parameter extracted from the params passed to the constructor
+    Scalar dlt; //!< dlt parameter extracted from the params passed to
+                //!< the constructor
     };
 
     } // end namespace md

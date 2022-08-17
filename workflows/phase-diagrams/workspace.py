@@ -10,10 +10,22 @@ import signac
 
 from monk import workflow, grid
 
+
 @click.command()
-@click.option("--num", type=int, default=16384, show_default=True, help="Number of particles in the simulation")
-@click.option("--pressure", type=float, default=1.0, show_default=True, help='Pressure to apply to simulations')
-@click.option('--clear-workspace', is_flag=True, default=False, help='Clears all data from the workspace of the project')
+@click.option("--num",
+              type=int,
+              default=16384,
+              show_default=True,
+              help="Number of particles in the simulation")
+@click.option("--pressure",
+              type=float,
+              default=1.0,
+              show_default=True,
+              help='Pressure to apply to simulations')
+@click.option('--clear-workspace',
+              is_flag=True,
+              default=False,
+              help='Clears all data from the workspace of the project')
 def main(num: int, pressure: float, clear_workspace: bool):
     # grabs the project configuration
     config = workflow.get_config()
@@ -29,7 +41,8 @@ def main(num: int, pressure: float, clear_workspace: bool):
 
         answer = None
         while answer is None or answer.lower() not in ['yes', '']:
-            answer = input('Are you sure you want to clear the workspace? (yes/N) ')
+            answer = input(
+                'Are you sure you want to clear the workspace? (yes/N) ')
         if answer == 'yes':
             print(f'Clearing workspace {workspace}')
             shutil.rmtree(str(workspace))
@@ -37,10 +50,10 @@ def main(num: int, pressure: float, clear_workspace: bool):
             for file in root.iterdir():
                 os.remove(file)
         sys.exit()
-        
 
     # initialize project
-    project: signac.Project = signac.init_project("phase-diagrams", root=config["root"])
+    project: signac.Project = signac.init_project("phase-diagrams",
+                                                  root=config["root"])
 
     statepoint_grid_ka_lj = {
         "it": range(3),
@@ -57,7 +70,9 @@ def main(num: int, pressure: float, clear_workspace: bool):
         job = project.open_job(statepoint=sp)
         job.init()
         if "init" not in job.doc:
-            print(f"Initializing job {job.id} with seed {project.doc['cur_seed']}")
+            print(
+                f"Initializing job {job.id} with seed {project.doc['cur_seed']}"
+            )
             job.document["seed"] = project.doc["cur_seed"]
             job.document['init'] = True
             project.doc["cur_seed"] += 1
@@ -66,9 +81,11 @@ def main(num: int, pressure: float, clear_workspace: bool):
     try:
         os.symlink(config["root"], "root")
     except FileExistsError:
-        if os.path.islink(config["root"]) and os.path.realpath(config["root"]) != os.path.realpath("root"):
+        if os.path.islink(config["root"]) and os.path.realpath(
+                config["root"]) != os.path.realpath("root"):
             os.remove("root")
             os.symlink(config["root"], "root")
+
 
 if __name__ == "__main__":
     main()

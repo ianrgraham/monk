@@ -1,11 +1,17 @@
 import hoomd
 from monk import prep, pair
+
 N = 512
 
 L = prep.len_from_phi(N, 1.2)
 
 rng = prep.init_rng(0)
-snap = prep.approx_euclidean_snapshot(N, L, rng, dim=3, particle_types=["A"], ratios=[100])
+snap = prep.approx_euclidean_snapshot(N,
+                                      L,
+                                      rng,
+                                      dim=3,
+                                      particle_types=["A"],
+                                      ratios=[100])
 
 cell = hoomd.md.nlist.Cell(0.1)
 lj = hoomd.md.pair.LJ(nlist=cell)

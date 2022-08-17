@@ -4,6 +4,7 @@ from hoomd.md.force import Force, Custom
 import numpy as np
 from numba import njit
 
+
 @njit
 def _diff_with_rtag(bias_pos, pos, rtags):
     """Compute the difference between bias pos and current pos.
@@ -19,19 +20,23 @@ def _diff_with_rtag(bias_pos, pos, rtags):
         out[idx] = pos[idx] - bias_pos[tag_idx]
     return out
 
+
 @njit
-def _mimse_force_energy(diff_pos, force, energy, bias_U_0, bias_U_sigma, bias_exclude):
+def _mimse_force_energy(diff_pos, force, energy, bias_U_0, bias_U_sigma,
+                        bias_exclude):
     """Compute the MIMSE force and energy."""
     N = len(diff_pos)
     mimse_forces = np.zeros_like(diff_pos)
     bias_factor = 1.0 - np.sum(np.square(diff_pos)) / (np.square(bias_U_sigma))
     for i in range(N):
         energy[i] += bias_U_0 * bias_factor**2 / N * (bias_factor > 0)
-        mimse_forces[i] = 4 * bias_U_0 / bias_U_sigma**2 * bias_factor * diff_pos[i]  * (bias_factor > 0)
-        
+        mimse_forces[
+            i] = 4 * bias_U_0 / bias_U_sigma**2 * bias_factor * diff_pos[i] * (
+                bias_factor > 0)
+
     mimse_forces -= np.sum(mimse_forces, axis=0) / N
 
-    for i in range(N):   
+    for i in range(N):
         force[i] += mimse_forces[i]
 
 
@@ -72,12 +77,12 @@ class MIMSEForce(Custom):
         """
         snap = self._state.get_snapshot()
         pos = snap.particles.position
-        
+
         kick = np.random.normal(0, 1.0, size=pos.shape)
         if self._state.box.is2D:
-            kick[:,2] = 0
+            kick[:, 2] = 0
         kick /= np.linalg.norm(kick)
-        kick *= 0.05*bias_rad
+        kick *= 0.05 * bias_rad
         pos += kick
 
         pos = self.box.wrap(pos)
@@ -85,26 +90,24 @@ class MIMSEForce(Custom):
         snap.particles.position[:] = pos
         self._state.set_snapshot(snap)
 
-
-
     def find_nn(self, pos, rtags):
         if self.last_nn_pos is None:
-            nn_euclidean_distance = 2 * self.delta ** 2
+            nn_euclidean_distance = 2 * self.delta**2
         else:
             diff = self.box.wrap(_diff_with_rtag(self.last_nn_pos, pos, rtags))
             nn_euclidean_distance = np.sum(np.square(diff))
-        if nn_euclidean_distance > self.delta ** 2:
+        if nn_euclidean_distance > self.delta**2:
             self.nn.clear()
             pos = self._state.get_snapshot().particles.position
             self.last_nn_pos = pos
-                
+
             for i in range(len(self.bias_positions)):
                 bias_pos = self.bias_positions[i]
                 bias_rad = self.bias_rads[i]
-                
+
                 diff = np.sum(np.square(self.box.wrap(pos - bias_pos)))
-                if diff <= (bias_rad*(1+self.delta))**2:
-                    self.nn.append(i)      
+                if diff <= (bias_rad * (1 + self.delta))**2:
+                    self.nn.append(i)
 
     def set_forces(self, timestep):
 
@@ -113,7 +116,7 @@ class MIMSEForce(Custom):
 
                 pos = data.particles.position._coerce_to_ndarray()
                 rtags = data.particles.rtag._coerce_to_ndarray()
-                
+
                 self.find_nn(pos, rtags)
 
                 for i in self.nn:
@@ -130,4 +133,5 @@ class MIMSEForce(Custom):
                     bias_U_sigma = self.bias_rads[i]
                     bias_exclude = self.bias_exclude[i]
 
-                    _mimse_force_energy(diff, force, energy, bias_U_0, bias_U_sigma, bias_exclude)
+                    _mimse_force_energy(diff, force, energy, bias_U_0,
+                                        bias_U_sigma, bias_exclude)

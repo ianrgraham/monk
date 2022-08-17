@@ -1,6 +1,6 @@
 
-#include "hoomd/System.h"
 #include "hoomd/SnapshotSystemData.h"
+#include "hoomd/System.h"
 
 // #include <types.h>
 #include <optional>
@@ -23,28 +23,30 @@ namespace hoomd
 
 Scalar propensity(uint32_t, uint32_t, ParticleData&, ParticleData*);
 
-std::vector<Scalar> sys_propensity(SnapshotParticleData<Scalar>&, std::map<unsigned int, unsigned int>&, ParticleData*);
+std::vector<Scalar>
+sys_propensity(SnapshotParticleData<Scalar>&, std::map<unsigned int, unsigned int>&, ParticleData*);
 
 /** In order to do this all rhobustly in MD, I think we need to constain this to
     methods where we can apply FIRE (or GD)
 */
-class PYBIND11_EXPORT FFSystem: public System
+class PYBIND11_EXPORT FFSystem : public System
     {
     public:
     //! Constructor
     FFSystem(std::shared_ptr<SystemDefinition> sysdef, uint64_t initial_tstep, uint32_t pid);
 
     //! Run the forward flux calculation segment, until the op evaluates
-    std::pair<std::optional<std::shared_ptr<SnapshotSystemData<Scalar>>>, Scalar> runFFTrial(
-        const Scalar barrier,
-        const std::shared_ptr<SnapshotSystemData<Scalar>> snapshot,
-        bool reset_tstep);
+    std::pair<std::optional<std::shared_ptr<SnapshotSystemData<Scalar>>>, Scalar>
+    runFFTrial(const Scalar barrier,
+               const std::shared_ptr<SnapshotSystemData<Scalar>> snapshot,
+               bool reset_tstep);
 
     std::vector<Scalar> sampleBasin(uint64_t nsteps, uint64_t period);
 
     std::vector<std::vector<Scalar>> sampleAllBasins(uint64_t nsteps, uint64_t period);
 
-    std::vector<std::shared_ptr<SnapshotSystemData<Scalar>>> sampleBasinForwardFluxes(uint64_t nsteps);
+    std::vector<std::shared_ptr<SnapshotSystemData<Scalar>>>
+    sampleBasinForwardFluxes(uint64_t nsteps);
 
     void setRefSnapshot();
 
@@ -63,11 +65,12 @@ class PYBIND11_EXPORT FFSystem: public System
     std::vector<Scalar> computeSysOrderParameter();
 
     private:
-
     //! Order parameter that is applied during FF calculation
-    //  
+    //
     Scalar (*m_order_param)(uint32_t, uint32_t, SnapshotParticleData<Scalar>&, ParticleData*);
-    std::vector<Scalar> (*m_sys_order_param)(SnapshotParticleData<Scalar>&, std::map<unsigned int, unsigned int>&, ParticleData*);
+    std::vector<Scalar> (*m_sys_order_param)(SnapshotParticleData<Scalar>&,
+                                             std::map<unsigned int, unsigned int>&,
+                                             ParticleData*);
     uint32_t m_pid;
     uint32_t m_mapped_pid;
     std::optional<SnapshotParticleData<Scalar>> m_ref_snap;
@@ -75,7 +78,6 @@ class PYBIND11_EXPORT FFSystem: public System
     Scalar m_basin_barrier;
 
     void simpleRun(uint64_t nsteps);
-    
     };
 
 namespace detail

@@ -19,8 +19,10 @@ from monk import pair, prep, methods, workflow
 
 config = workflow.get_config()
 
+
 class Project(flow.FlowProject):
     pass
+
 
 @Project.operation
 @Project.pre.true('init')
@@ -37,16 +39,20 @@ def init_state(job: signac.Project.Job):
 
     rng = prep.init_rng(seed)
     L = prep.len_from_phi(N, init_phi)
-    snap = prep.approx_euclidean_snapshot(
-        N, L, rng, dim=3, particle_types=["A", "B"], ratios=[A_frac, 100-A_frac], diams=[1.0, 0.88]
-    )
+    snap = prep.approx_euclidean_snapshot(N,
+                                          L,
+                                          rng,
+                                          dim=3,
+                                          particle_types=["A", "B"],
+                                          ratios=[A_frac, 100 - A_frac],
+                                          diams=[1.0, 0.88])
     sim.create_state_from_snapshot(snap)
 
     hoomd.write.GSD.write(sim.state, job.fn("init.gsd"))
 
     job.doc["init_state"] = True
 
-# TODO add operation to map out the dynamics 
 
+# TODO add operation to map out the dynamics
 
-# TODO once we understand the rough dynamics of each system, we can 
+# TODO once we understand the rough dynamics of each system, we can

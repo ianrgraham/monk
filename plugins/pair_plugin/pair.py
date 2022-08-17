@@ -1,7 +1,6 @@
 # Copyright (c) 2009-2021 The Regents of the University of Michigan
 # This file is part of the HOOMD-blue project, released under the BSD 3-Clause
 # License.
-
 """HOOMD plugin for a variety of pair interactions."""
 
 import copy
@@ -19,6 +18,7 @@ from hoomd.data.typeconverter import (OnlyFrom, OnlyTypes, nonnegative_real)
 import hoomd.md.pair as _pair
 
 validate_nlist = OnlyTypes(NeighborList)
+
 
 class ModLJ(_pair.Pair):
     r"""Modified Lennard-Jones pair potential to showcase an example of a pair plugin.
@@ -70,16 +70,23 @@ class ModLJ(_pair.Pair):
     # Name of the potential we want to reference on the C++ side
     _cpp_class_name = "PotentialPairMLJ"
 
-    def __init__(self, nlist, default_r_cut=None, default_r_on=0., mode='none'):
+    def __init__(self,
+                 nlist,
+                 default_r_cut=None,
+                 default_r_on=0.,
+                 mode='none'):
         super().__init__(nlist, default_r_cut, default_r_on, mode)
         params = TypeParameter(
             'params', 'particle_types',
-            TypeParameterDict(epsilon=float, sigma=float, delta=float, len_keys=2))
+            TypeParameterDict(epsilon=float,
+                              sigma=float,
+                              delta=float,
+                              len_keys=2))
         self._add_typeparam(params)
 
     def _attach(self):
         """Slightly modified with regard to the base class `md.Pair`.
-        
+
         In particular, we search for `PotentialPairExample` in `hoomd.pair_plugin._pair_plugin`
         instead of `hoomd.md._md`.
         """
@@ -103,7 +110,7 @@ class ModLJ(_pair.Pair):
                 _md.NeighborList.storageMode.full)
         self._cpp_obj = cls(self._simulation.state._cpp_sys_def,
                             self.nlist._cpp_obj)
-        
+
         grandparent = super(_pair.Pair, self)
         grandparent._attach()
 
@@ -145,7 +152,11 @@ class Hertzian(_pair.Pair):
     # Name of the potential we want to reference on the C++ side
     _cpp_class_name = "PotentialPairHertzian"
 
-    def __init__(self, nlist, default_r_cut=None, default_r_on=0., mode='none'):
+    def __init__(self,
+                 nlist,
+                 default_r_cut=None,
+                 default_r_on=0.,
+                 mode='none'):
         super().__init__(nlist, default_r_cut, default_r_on, mode)
         params = TypeParameter(
             'params', 'particle_types',
@@ -154,7 +165,7 @@ class Hertzian(_pair.Pair):
 
     def _attach(self):
         """Slightly modified with regard to the base class `md.Pair`.
-        
+
         In particular, we search for `PotentialPairHertzian` in `_pair_plugin`
         instead of `md.pair` as we would have done in the source code.
         """
@@ -178,7 +189,7 @@ class Hertzian(_pair.Pair):
                 _md.NeighborList.storageMode.full)
         self._cpp_obj = cls(self._simulation.state._cpp_sys_def,
                             self.nlist._cpp_obj)
-        
+
         grandparent = super(_pair.Pair, self)
         grandparent._attach()
 
@@ -215,7 +226,7 @@ class HPFPair(force.Force):
 
     # The accepted modes for the potential. Should be reset by subclasses with
     # restricted modes.
-    _accepted_modes = ("none",)
+    _accepted_modes = ("none", )
 
     @log(category="pair", requires_run=True)
     def nlist_pairs(self):
@@ -233,7 +244,14 @@ class HPFPair(force.Force):
     def pair_torques(self):
         pass
 
-    def __init__(self, nlist, default_r_cut=None, mode='none', mus=0.0, mur=0.0, ks=0.0, kr=0.0):
+    def __init__(self,
+                 nlist,
+                 default_r_cut=None,
+                 mode='none',
+                 mus=0.0,
+                 mur=0.0,
+                 ks=0.0,
+                 kr=0.0):
         super().__init__()
         tp_r_cut = TypeParameter(
             'r_cut', 'particle_types',
@@ -254,8 +272,6 @@ class HPFPair(force.Force):
         self.mur = mur
         self.ks = ks
         self.kr = kr
-
-        
 
     def _add(self, simulation):
         super()._add(simulation)
@@ -306,16 +322,13 @@ class HPFPair(force.Force):
         else:
             # TODO GPU version is not yet implemented
             print("GPU version not yet implemented")
-            cls = getattr(_pair_plugin, self._cpp_class_name) #  + "GPU"
+            cls = getattr(_pair_plugin, self._cpp_class_name)  #  + "GPU"
             self.nlist._cpp_obj.setStorageMode(
                 _md.NeighborList.storageMode.full)
         self._cpp_obj = cls(self._simulation.state._cpp_sys_def,
-                            self.nlist._cpp_obj,
-                            self.mus,
-                            self.mur,
-                            self.ks,
+                            self.nlist._cpp_obj, self.mus, self.mur, self.ks,
                             self.kr)
-        
+
         super()._attach()
 
     def _setattr_param(self, attr, value):
@@ -341,7 +354,14 @@ class HarmHPF(HPFPair):
 
     _cpp_class_name = "PotentialPairHPF"
 
-    def __init__(self, nlist, default_r_cut=None, mode='none', mus=0.0, mur=0.0, ks=0.0, kr=0.0):
+    def __init__(self,
+                 nlist,
+                 default_r_cut=None,
+                 mode='none',
+                 mus=0.0,
+                 mur=0.0,
+                 ks=0.0,
+                 kr=0.0):
         super().__init__(nlist, default_r_cut, mode, mus, mur, ks, kr)
         params = TypeParameter(
             'params', 'particle_types',

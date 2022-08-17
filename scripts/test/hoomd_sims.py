@@ -20,7 +20,12 @@ L = prep.len_from_phi(N, phi)
 print(L)
 
 rng = prep.init_rng(0)
-snap = prep.approx_euclidean_snapshot(N, L, rng, dim=3, particle_types=["A", "B"], ratios=[80, 20])
+snap = prep.approx_euclidean_snapshot(N,
+                                      L,
+                                      rng,
+                                      dim=3,
+                                      particle_types=["A", "B"],
+                                      ratios=[80, 20])
 
 sim.create_state_from_snapshot(snap)
 
@@ -34,10 +39,7 @@ integrator.forces.append(pot_pair)
 print("Made forces!")
 
 # start and end of ramp
-nvt = hoomd.md.methods.NVT(
-    kT=1.5,
-    filter=hoomd.filter.All(),
-    tau=0.5)
+nvt = hoomd.md.methods.NVT(kT=1.5, filter=hoomd.filter.All(), tau=0.5)
 integrator.methods.append(nvt)
 print("Made integrator!")
 sim.operations.integrator = integrator

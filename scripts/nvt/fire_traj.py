@@ -28,6 +28,7 @@ class AsyncTrigger(hoomd.trigger.Trigger):
         self.async_trig = False
         return out
 
+
 class UpdatePosZeroVel(hoomd.custom.Action):
 
     def __init__(self, new_snap=None):
@@ -41,22 +42,41 @@ class UpdatePosZeroVel(hoomd.custom.Action):
         # print("Worked!")
         if old_snap.communicator.rank == 0:
             N = old_snap.particles.N
-            new_velocity = np.zeros((N,3))
+            new_velocity = np.zeros((N, 3))
             for i in range(N):
                 old_snap.particles.velocity[i] = new_velocity[i]
-                old_snap.particles.position[i] = self.new_snap.particles.position[i]
+                old_snap.particles.position[
+                    i] = self.new_snap.particles.position[i]
         self._state.set_snapshot(old_snap)
+
 
 valid_input_formats = [".gsd"]
 valid_output_formats = [".gsd"]
 
-parser = argparse.ArgumentParser(description="From a traj file, quench each frame to the inherent structure using FIRE")
-parser.add_argument("ifile", type=str, help=f"Input file (allowed formats: {valid_input_formats}")
-parser.add_argument("ofile", type=str, help=f"Output file (allowed formats: {valid_output_formats}")
-parser.add_argument("--pair", nargs="+", help="Set the potential pair with any function callable in 'monk.pair'", default=["KA_LJ"])
+parser = argparse.ArgumentParser(
+    description=
+    "From a traj file, quench each frame to the inherent structure using FIRE")
+parser.add_argument("ifile",
+                    type=str,
+                    help=f"Input file (allowed formats: {valid_input_formats}")
+parser.add_argument(
+    "ofile",
+    type=str,
+    help=f"Output file (allowed formats: {valid_output_formats}")
+parser.add_argument(
+    "--pair",
+    nargs="+",
+    help="Set the potential pair with any function callable in 'monk.pair'",
+    default=["KA_LJ"])
 parser.add_argument("--dt", type=float, default=2.5e-2, help="Timestep size")
-parser.add_argument("--fire-steps", type=int, default=1000, help="Step interval to check for FIRE convergence")
-parser.add_argument("--log-pair", action="store_true", help="Additionally log information about forces and energy")
+parser.add_argument("--fire-steps",
+                    type=int,
+                    default=1000,
+                    help="Step interval to check for FIRE convergence")
+parser.add_argument(
+    "--log-pair",
+    action="store_true",
+    help="Additionally log information about forces and energy")
 
 args = parser.parse_args()
 
@@ -78,7 +98,6 @@ print(f"Running on {device.devices[0]}")
 sim.create_state_from_gsd(str(ifile), frame=0)
 traj = gsd.hoomd.open(str(ifile))
 
-
 # set potential
 print(f"Set potential. {{ pair: {pair_name}, args: {arguments} }}")
 integrator = hoomd.md.minimize.FIRE(dt, 1e-5, 1e-5, 1e-5)
@@ -97,7 +116,7 @@ async_trig = AsyncTrigger()
 async_write_trig = AsyncTrigger()
 
 custom_op = hoomd.update.CustomUpdater(action=custom_updater,
-                                      trigger=async_trig)
+                                       trigger=async_trig)
 
 if log_pair:
     logger = hoomd.logging.Logger()
@@ -106,17 +125,16 @@ else:
     logger = None
 
 gsd_writer = hoomd.write.GSD(filename=str(ofile),
-                            trigger=async_write_trig,
-                            mode='wb',
-                            filter=hoomd.filter.All(),
-                            log=logger)
+                             trigger=async_write_trig,
+                             mode='wb',
+                             filter=hoomd.filter.All(),
+                             log=logger)
 
 sim.operations.add(custom_op)
 sim.operations.writers.append(gsd_writer)
 
 # iterate over traj frames
 for idx, snap in enumerate(traj):
-
 
     custom_updater.set_snap(snap)
     async_trig.activate()

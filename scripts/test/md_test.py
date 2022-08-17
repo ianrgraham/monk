@@ -58,9 +58,9 @@ with tempfile.TemporaryDirectory() as tmpdir:
     path = Path(tmpdir) / 'md_test.gsd'
     print(path)
     gsd_writer = hoomd.write.GSD(filename=str(path),
-                                trigger=hoomd.trigger.Periodic(200),
-                                mode='xb',
-                                filter=hoomd.filter.All())
+                                 trigger=hoomd.trigger.Periodic(200),
+                                 mode='xb',
+                                 filter=hoomd.filter.All())
     sim.operations.writers.append(gsd_writer)
     gsd_writer.log = logger
     for i in range(10):

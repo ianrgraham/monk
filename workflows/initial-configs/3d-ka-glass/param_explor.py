@@ -22,6 +22,7 @@ from monk import project_path, project_view, safe_clean_signac_project, grid
 from monk import pair, prep, methods
 import gsd.hoomd
 
+
 class Project(flow.FlowProject):
 
     def _new_main(self, parser=None, subparsers=None, base_parser=None):
@@ -30,8 +31,7 @@ class Project(flow.FlowProject):
         # line interface, we know exactly what the entrypoint path should be:
         # it's the file where main is called, which we can pull off the stack.
         self._entrypoint.setdefault(
-            "path", os.path.realpath(inspect.stack()[-1].filename)
-        )
+            "path", os.path.realpath(inspect.stack()[-1].filename))
 
         if parser is None:
             parser = argparse.ArgumentParser()
@@ -79,7 +79,8 @@ class Project(flow.FlowProject):
             "--profile",
             const=inspect.getsourcefile(inspect.getmodule(self)),
             nargs="?",
-            help="Collect statistics to determine code paths that are responsible "
+            help=
+            "Collect statistics to determine code paths that are responsible "
             "for the majority of runtime required for status determination. "
             "Optionally provide a filename pattern to select for what files "
             "to show result for. Defaults to the main module. "
@@ -90,9 +91,12 @@ class Project(flow.FlowProject):
         parser_next = subparsers.add_parser(
             "next",
             parents=[base_parser],
-            description="Determine jobs that are eligible for a specific operation.",
+            description=
+            "Determine jobs that are eligible for a specific operation.",
         )
-        parser_next.add_argument("name", type=str, help="The name of the operation.")
+        parser_next.add_argument("name",
+                                 type=str,
+                                 help="The name of the operation.")
         parser_next.set_defaults(func=self._main_next)
 
         parser_run = subparsers.add_parser(
@@ -116,7 +120,8 @@ class Project(flow.FlowProject):
             "--num-passes",
             type=int,
             default=1,
-            help="Specify how many times a particular job-operation may be executed within one "
+            help=
+            "Specify how many times a particular job-operation may be executed within one "
             "session (default=1). This is to prevent accidental infinite loops, "
             "where operations are executed indefinitely, because postconditions "
             "were not properly set. Use -1 to allow for an infinite number of passes.",
@@ -125,12 +130,14 @@ class Project(flow.FlowProject):
             "-t",
             "--timeout",
             type=float,
-            help="A timeout in seconds after which the execution of one operation is canceled.",
+            help=
+            "A timeout in seconds after which the execution of one operation is canceled.",
         )
         execution_group.add_argument(
             "--switch-to-project-root",
             action="store_true",
-            help="Temporarily add the current working directory to the python search path and "
+            help=
+            "Temporarily add the current working directory to the python search path and "
             "switch to the root directory prior to execution.",
         )
         execution_group.add_argument(
@@ -139,7 +146,8 @@ class Project(flow.FlowProject):
             type=int,
             nargs="?",
             const="-1",
-            help="Specify the number of cores to parallelize to. Defaults to all available "
+            help=
+            "Specify the number of cores to parallelize to. Defaults to all available "
             "processing units.",
         )
         execution_group.add_argument(
@@ -147,7 +155,8 @@ class Project(flow.FlowProject):
             type=str,
             choices=["none", "by-job", "cyclic", "random"],
             default=None,
-            help="Specify the execution order of operations for each execution pass.",
+            help=
+            "Specify the execution order of operations for each execution pass.",
         )
         execution_group.add_argument(
             "--ignore-conditions",
@@ -166,8 +175,7 @@ class Project(flow.FlowProject):
         )
         self._add_submit_args(parser_submit)
         env_group = parser_submit.add_argument_group(
-            f"{self._environment.__name__} options"
-        )
+            f"{self._environment.__name__} options")
         self._environment.add_args(env_group)
         parser_submit.set_defaults(func=self._main_submit)
         print(
@@ -203,7 +211,8 @@ class Project(flow.FlowProject):
         # Manually 'merge' the various global options defined for both the main parser
         # and the parent parser that are shared by all subparsers:
         for dest in ("verbose", "show_traceback", "debug"):
-            setattr(args, dest, getattr(args, "main_" + dest) or getattr(args, dest))
+            setattr(args, dest,
+                    getattr(args, "main_" + dest) or getattr(args, dest))
             delattr(args, "main_" + dest)
 
         # Read the config file and set the internal flag.
@@ -228,12 +237,14 @@ class Project(flow.FlowProject):
         logging.basicConfig(level=max(0, logging.WARNING - 10 * args.verbose))
 
         def _show_traceback_and_exit(error):
-            is_user_error = isinstance(error, (UserOperationError, UserConditionError))
+            is_user_error = isinstance(
+                error, (UserOperationError, UserConditionError))
             if is_user_error:
                 # Always show the user traceback cause.
                 error = error.__cause__
             if args.show_traceback or is_user_error:
-                traceback.print_exception(type(error), error, error.__traceback__)
+                traceback.print_exception(type(error), error,
+                                          error.__traceback__)
             if not args.show_traceback:
                 print(
                     "Execute with '--show-traceback' or '--debug' to show the "
@@ -287,7 +298,6 @@ class Project(flow.FlowProject):
                 )
             _show_traceback_and_exit(error)
 
-
     def _main_init(self, args):
 
         steps = args.steps
@@ -304,9 +314,9 @@ class Project(flow.FlowProject):
             num_iter = 1
         else:
             num_iter = 5
-        
+
         project = self
-        
+
         if "initialized" not in project.doc:
             print("Initializing project")
             project.doc["initialized"] = True
@@ -319,13 +329,19 @@ class Project(flow.FlowProject):
         # Initialize the data space
 
         statepoint_grid_ka_lj = {
-            "it": range(num_iter), 
+            "it": range(num_iter),
             "phi": [1.0, 1.1, 1.2, 1.3, 1.35],
             "A_frac": [80, 70, 60]
         }
 
         for sp in grid(statepoint_grid_ka_lj):
-            universal = dict(N=512, init_kT=1.4, final_kT=0.4, dt=2.5e-3, steps=steps, equil_steps=equil_steps, dumps=100)
+            universal = dict(N=512,
+                             init_kT=1.4,
+                             final_kT=0.4,
+                             dt=2.5e-3,
+                             steps=steps,
+                             equil_steps=equil_steps,
+                             dumps=100)
             sp.update(universal)
             job = project.open_job(sp).init()
             if "init" not in job.doc:
@@ -388,7 +404,6 @@ class Project(flow.FlowProject):
             help="Run parameters for testing",
         )
         parser_init.set_defaults(func=self._main_init)
-        
 
         parser_clear = subparsers.add_parser(
             "clear",
@@ -397,8 +412,9 @@ class Project(flow.FlowProject):
         )
         parser_clear.set_defaults(func=self._main_clear)
 
-
-        self._new_main(parser=parser, subparsers=subparsers, base_parser=base_parser)
+        self._new_main(parser=parser,
+                       subparsers=subparsers,
+                       base_parser=base_parser)
 
 
 @Project.operation
@@ -415,9 +431,13 @@ def init_state(job: signac.Project.Job):
 
     rng = prep.init_rng(seed)
     L = prep.len_from_phi(N, phi)
-    snap = prep.approx_euclidean_snapshot(
-        N, L, rng, dim=3, particle_types=["A", "B"], ratios=[A_frac, 100-A_frac], diams=[1.0, 0.88]
-    )
+    snap = prep.approx_euclidean_snapshot(N,
+                                          L,
+                                          rng,
+                                          dim=3,
+                                          particle_types=["A", "B"],
+                                          ratios=[A_frac, 100 - A_frac],
+                                          diams=[1.0, 0.88])
     sim.create_state_from_snapshot(snap)
 
     hoomd.write.GSD.write(sim.state, job.fn("init.gsd"))
@@ -461,17 +481,15 @@ def run_nvt_sim(job: signac.Project.Job):
         def value(self):
             return self._variant(self._sim.timestep)
 
-    nvt = hoomd.md.methods.NVT(
-        kT=kT_variant,
-        filter=hoomd.filter.All(),
-        tau=1.0
-    )
+    nvt = hoomd.md.methods.NVT(kT=kT_variant,
+                               filter=hoomd.filter.All(),
+                               tau=1.0)
 
     integrator.methods.append(nvt)
     sim.operations.integrator = integrator
 
     thermodynamic_properties = hoomd.md.compute.ThermodynamicQuantities(
-    filter=hoomd.filter.All())
+        filter=hoomd.filter.All())
     sim.operations.computes.append(thermodynamic_properties)
 
     print("Thermalizing system")
@@ -486,18 +504,21 @@ def run_nvt_sim(job: signac.Project.Job):
     logger = hoomd.logging.Logger(categories=['scalar'])
     logger.add(sim, quantities=["timestep"])
     logger[('NVT', 'kT')] = (kT_logger, 'value', 'scalar')
-    logger.add(thermodynamic_properties, quantities=["kinetic_temperature", "kinetic_energy", "potential_energy"])
+    logger.add(thermodynamic_properties,
+               quantities=[
+                   "kinetic_temperature", "kinetic_energy", "potential_energy"
+               ])
 
     table = hoomd.write.Table(trigger=hoomd.trigger.Periodic(period=100_000),
-                          logger=logger)
+                              logger=logger)
 
-    gsd_writer = hoomd.write.GSD(
-        filename=job.fn("equil.gsd"),
-        trigger=hoomd.trigger.Periodic(int(equil_steps/dumps), phase=sim.timestep),
-        mode='wb',
-        filter=hoomd.filter.All(),
-        log=logger
-    )
+    gsd_writer = hoomd.write.GSD(filename=job.fn("equil.gsd"),
+                                 trigger=hoomd.trigger.Periodic(
+                                     int(equil_steps / dumps),
+                                     phase=sim.timestep),
+                                 mode='wb',
+                                 filter=hoomd.filter.All(),
+                                 log=logger)
     sim.operations.writers.append(table)
     sim.operations.writers.append(gsd_writer)
 
@@ -510,17 +531,16 @@ def run_nvt_sim(job: signac.Project.Job):
 
     print("Running quench to the glassy phase")
 
-    gsd_writer = hoomd.write.GSD(
-        filename=job.fn("traj.gsd"),
-        trigger=hoomd.trigger.Periodic(int(steps/dumps), phase=sim.timestep),
-        mode='wb',
-        filter=hoomd.filter.All(),
-        log=logger
-    )
+    gsd_writer = hoomd.write.GSD(filename=job.fn("traj.gsd"),
+                                 trigger=hoomd.trigger.Periodic(
+                                     int(steps / dumps), phase=sim.timestep),
+                                 mode='wb',
+                                 filter=hoomd.filter.All(),
+                                 log=logger)
 
     sim.operations.writers.append(gsd_writer)
 
-    sim.run(steps+1, True)
+    sim.run(steps + 1, True)
 
     job.doc["simulated"] = True
 
@@ -554,11 +574,7 @@ def record_dyn_small(job: signac.Project.Job):
         pot_pair = pair.KA_LJ(nlist)
         integrator.forces.append(pot_pair)
 
-        nvt = hoomd.md.methods.NVT(
-            kT=kT,
-            filter=hoomd.filter.All(),
-            tau=1.0
-        )
+        nvt = hoomd.md.methods.NVT(kT=kT, filter=hoomd.filter.All(), tau=1.0)
 
         integrator.methods.append(nvt)
         sim.operations.integrator = integrator
@@ -567,12 +583,11 @@ def record_dyn_small(job: signac.Project.Job):
 
             file = job.fn(f"equil_temp-{kT:.2f}_idx-{i}.gsd")
 
-            gsd_writer = hoomd.write.GSD(
-                filename=file,
-                trigger=methods.LogTrigger(10, 0, 0.1, sim.timestep),
-                mode='wb',
-                filter=hoomd.filter.All()
-            )
+            gsd_writer = hoomd.write.GSD(filename=file,
+                                         trigger=methods.LogTrigger(
+                                             10, 0, 0.1, sim.timestep),
+                                         mode='wb',
+                                         filter=hoomd.filter.All())
             sim.operations.writers.append(gsd_writer)
 
             sim.run(sim_steps)
@@ -580,7 +595,9 @@ def record_dyn_small(job: signac.Project.Job):
     job.doc["dyn_recorded"] = True
 
 
-project: Project = Project.init_project(name="ParamExplor", root=project_path("initial-configs/3d-glass/param_explor"))
+project: Project = Project.init_project(
+    name="ParamExplor",
+    root=project_path("initial-configs/3d-glass/param_explor"))
 
 if __name__ == '__main__':
     project.main()

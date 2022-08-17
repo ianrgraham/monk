@@ -34,7 +34,7 @@ def config_param(path, tag):
 
 
 rule all:
-    input: 
+    input:
         *gen_all()
 
 rule simulate:

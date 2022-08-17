@@ -12,8 +12,8 @@ from . import pair as monk_pair
 
 
 def init_rng(
-        seed: Union[int, Sequence[int]]
-        ) -> Union[np.random.Generator, Sequence[np.random.Generator]]:
+    seed: Union[int, Sequence[int]]
+) -> Union[np.random.Generator, Sequence[np.random.Generator]]:
     '''Simple helper function to spawn random number generators.'''
     return np.random.default_rng(seed)
 
@@ -21,21 +21,22 @@ def init_rng(
 def len_from_phi(N: int, phi: float, dim: int = 3):
     """Calculate regular box length for a given particle density"""
     assert dim in [2, 3], "Valid dims in hoomd are 2 and 3"
-    return np.power(N / phi, 1/dim)
+    return np.power(N / phi, 1 / dim)
 
 
 def len_from_vol_frac(diams: ArrayLike, vol_frac: float, dim: int = 3):
     """Calculate regular box length for a given volume fraction"""
     assert dim in [2, 3], "Valid dims in hoomd are 2 and 3"
-    part_vol = np.sum(np.square(diams/2)*np.pi)
-    return np.power(part_vol / vol_frac, 1/dim)
+    part_vol = np.sum(np.square(diams / 2) * np.pi)
+    return np.power(part_vol / vol_frac, 1 / dim)
 
 
-def search_for_pair(pair: List) -> Tuple[Callable[..., hoomd.md.pair.Pair], Tuple]:
+def search_for_pair(
+        pair: List) -> Tuple[Callable[..., hoomd.md.pair.Pair], Tuple]:
     """Search for function matching `pair` in `monk.pair`."""
 
     pair_len = len(pair)
-    assert(pair_len >= 1)
+    assert (pair_len >= 1)
     pair_name = pair[0]
     if pair_len > 1:
         pair_args = tuple(pair[1:])
@@ -52,20 +53,21 @@ def search_for_pair(pair: List) -> Tuple[Callable[..., hoomd.md.pair.Pair], Tupl
 
     return (pair_func, arguments_tuple)
 
+
 def vary_potential_parameters(
     sim: hoomd.Simulation,
     nlist: hoomd.md.nlist.NeighborList,
     pair_func: Callable[..., hoomd.md.pair.Pair],
     param_iter: Iterable[Tuple],
     steps: int,
-):  
+):
     """Interlace variations to a pair potential and the running of a simulation.
 
     Commonly used to equilibrate unstable parameter regions of a potential by
     starting from a stable state and slowly tuning the parameters. Of course,
     this function will mutate the simulation state forward in time, as well as
     repeatedly clearing and resetting the active forces in the system. Has the
-    side effect of clearing any existing potentials of the system and leaving 
+    side effect of clearing any existing potentials of the system and leaving
     the last applied potential active.
 
     Arguments
@@ -84,21 +86,20 @@ def vary_potential_parameters(
         pot_pair = pair_func(nlist, *params)
         integrator.forces.append(pot_pair)
         sim.run(steps)
-        
+
 
 def uniform_random_snapshot(
-    N: int,
-    L: float,
-    rng: np.random.Generator,
-    dim: int = 2,
-    particle_types: Optional[List[str]] = None,
-    ratios: Optional[List[int]] = None,
-    diams: Optional[List[float]] = None
-) -> gsd.hoomd.Snapshot:
+        N: int,
+        L: float,
+        rng: np.random.Generator,
+        dim: int = 2,
+        particle_types: Optional[List[str]] = None,
+        ratios: Optional[List[int]] = None,
+        diams: Optional[List[float]] = None) -> gsd.hoomd.Snapshot:
 
     if particle_types is None:
         particle_types = ['A', 'B']
-    
+
     if ratios is None:
         ratios = [50, 50]
 
@@ -108,11 +109,13 @@ def uniform_random_snapshot(
     assert N > 0, "Number of particles cannot be <= 0"
     len_types = len(particle_types)
     assert np.sum(ratios) == 100, "Ratios must sum to 100"
-    assert len_types == len(ratios), "Lens of 'particle_types' and 'ratios' must match"
+    assert len_types == len(
+        ratios), "Lens of 'particle_types' and 'ratios' must match"
     if diams is not None:
         assert len_types == len(diams)
 
-    pos = np.pad(rng.uniform(low=-L/2, high=L/2, size=(N, dim)), ((0, 0), (0, 3-dim)))
+    pos = np.pad(rng.uniform(low=-L / 2, high=L / 2, size=(N, dim)),
+                 ((0, 0), (0, 3 - dim)))
 
     if dim == 2:
         Lz = 0.0
@@ -132,7 +135,7 @@ def uniform_random_snapshot(
     limits = np.cumsum(ratios)
     j = 0
     for i in rng.permutation(np.arange(N)):
-        while j/N*100 >= limits[idx]:
+        while j / N * 100 >= limits[idx]:
             idx += 1
         snapshot.particles.typeid[i] = idx
         snapshot.particles.diameter[i] = diams[idx]
@@ -141,6 +144,7 @@ def uniform_random_snapshot(
 
     return snapshot
 
+
 def approx_euclidean_snapshot(
         N: int,
         L: float,
@@ -148,8 +152,7 @@ def approx_euclidean_snapshot(
         dim: int = 2,
         particle_types: Optional[List[str]] = None,
         ratios: Optional[List[int]] = None,
-        diams: Optional[List[float]] = None
-) -> gsd.hoomd.Snapshot:
+        diams: Optional[List[float]] = None) -> gsd.hoomd.Snapshot:
     '''Constucts hoomd simulation snapshot with regularly spaced particles on a
     euclidian lattice.
 
@@ -175,7 +178,7 @@ def approx_euclidean_snapshot(
 
     if particle_types is None:
         particle_types = ['A', 'B']
-    
+
     if ratios is None:
         ratios = [50, 50]
 
@@ -185,12 +188,13 @@ def approx_euclidean_snapshot(
     assert N > 0, "Number of particles cannot be <= 0"
     len_types = len(particle_types)
     assert np.sum(ratios) == 100, "Ratios must sum to 100"
-    assert len_types == len(ratios), "Lens of 'particle_types' and 'ratios' must match"
+    assert len_types == len(
+        ratios), "Lens of 'particle_types' and 'ratios' must match"
     if diams is not None:
         assert len_types == len(diams)
 
-    n = int(np.ceil(np.power(N, 1/dim)))
-    x = np.linspace(-L/2, L/2, n, endpoint=False)
+    n = int(np.ceil(np.power(N, 1 / dim)))
+    x = np.linspace(-L / 2, L / 2, n, endpoint=False)
     X = [x for _ in range(dim)]
     if dim == 2:
         X.append(np.zeros(1))
@@ -216,7 +220,7 @@ def approx_euclidean_snapshot(
     limits = np.cumsum(ratios)
     j = 0
     for i in rng.permutation(np.arange(N)):
-        while j/N*100 >= limits[idx]:
+        while j / N * 100 >= limits[idx]:
             idx += 1
         snapshot.particles.typeid[i] = idx
         snapshot.particles.diameter[i] = diams[idx]

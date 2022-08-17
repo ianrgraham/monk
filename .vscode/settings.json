@@ -1,5 +1,5 @@
 {
-  
+
     "python.linting.enabled": true,
     "C_Cpp.default.cppStandard": "c++17",
     "jupyter.jupyterServerType": "local",

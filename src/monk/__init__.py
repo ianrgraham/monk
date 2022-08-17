@@ -13,9 +13,11 @@ def project_path(dir: str):
     assert dir != ""
     return MONK_DATA_DIR / dir
 
+
 def project_view(dir: str):
     assert dir != ""
     return MONK_DATA_DIR / dir / "view"
+
 
 def safe_clean_signac_project(dir: str, prepend_monk: bool = True):
     if prepend_monk:

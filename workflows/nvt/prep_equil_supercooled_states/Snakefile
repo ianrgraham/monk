@@ -28,7 +28,7 @@ def gen_all():
     return outputs
 
 rule all:
-    input: 
+    input:
         *gen_all()
 
 rule equilibrate:

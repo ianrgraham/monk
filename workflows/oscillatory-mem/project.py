@@ -19,6 +19,7 @@ from flow.project import UserConditionError, UserOperationError, SubmitError, \
 from monk import project_path, project_view, safe_clean_signac_project, grid
 from monk import pair, prep, methods
 
+
 class Project(flow.FlowProject):
 
     def _new_main(self, parser=None, subparsers=None, base_parser=None):
@@ -27,8 +28,7 @@ class Project(flow.FlowProject):
         # line interface, we know exactly what the entrypoint path should be:
         # it's the file where main is called, which we can pull off the stack.
         self._entrypoint.setdefault(
-            "path", os.path.realpath(inspect.stack()[-1].filename)
-        )
+            "path", os.path.realpath(inspect.stack()[-1].filename))
 
         if parser is None:
             parser = argparse.ArgumentParser()
@@ -76,7 +76,8 @@ class Project(flow.FlowProject):
             "--profile",
             const=inspect.getsourcefile(inspect.getmodule(self)),
             nargs="?",
-            help="Collect statistics to determine code paths that are responsible "
+            help=
+            "Collect statistics to determine code paths that are responsible "
             "for the majority of runtime required for status determination. "
             "Optionally provide a filename pattern to select for what files "
             "to show result for. Defaults to the main module. "
@@ -87,9 +88,12 @@ class Project(flow.FlowProject):
         parser_next = subparsers.add_parser(
             "next",
             parents=[base_parser],
-            description="Determine jobs that are eligible for a specific operation.",
+            description=
+            "Determine jobs that are eligible for a specific operation.",
         )
-        parser_next.add_argument("name", type=str, help="The name of the operation.")
+        parser_next.add_argument("name",
+                                 type=str,
+                                 help="The name of the operation.")
         parser_next.set_defaults(func=self._main_next)
 
         parser_run = subparsers.add_parser(
@@ -113,7 +117,8 @@ class Project(flow.FlowProject):
             "--num-passes",
             type=int,
             default=1,
-            help="Specify how many times a particular job-operation may be executed within one "
+            help=
+            "Specify how many times a particular job-operation may be executed within one "
             "session (default=1). This is to prevent accidental infinite loops, "
             "where operations are executed indefinitely, because postconditions "
             "were not properly set. Use -1 to allow for an infinite number of passes.",
@@ -122,12 +127,14 @@ class Project(flow.FlowProject):
             "-t",
             "--timeout",
             type=float,
-            help="A timeout in seconds after which the execution of one operation is canceled.",
+            help=
+            "A timeout in seconds after which the execution of one operation is canceled.",
         )
         execution_group.add_argument(
             "--switch-to-project-root",
             action="store_true",
-            help="Temporarily add the current working directory to the python search path and "
+            help=
+            "Temporarily add the current working directory to the python search path and "
             "switch to the root directory prior to execution.",
         )
         execution_group.add_argument(
@@ -136,7 +143,8 @@ class Project(flow.FlowProject):
             type=int,
             nargs="?",
             const="-1",
-            help="Specify the number of cores to parallelize to. Defaults to all available "
+            help=
+            "Specify the number of cores to parallelize to. Defaults to all available "
             "processing units.",
         )
         execution_group.add_argument(
@@ -144,7 +152,8 @@ class Project(flow.FlowProject):
             type=str,
             choices=["none", "by-job", "cyclic", "random"],
             default=None,
-            help="Specify the execution order of operations for each execution pass.",
+            help=
+            "Specify the execution order of operations for each execution pass.",
         )
         execution_group.add_argument(
             "--ignore-conditions",
@@ -163,8 +172,7 @@ class Project(flow.FlowProject):
         )
         self._add_submit_args(parser_submit)
         env_group = parser_submit.add_argument_group(
-            f"{self._environment.__name__} options"
-        )
+            f"{self._environment.__name__} options")
         self._environment.add_args(env_group)
         parser_submit.set_defaults(func=self._main_submit)
         print(
@@ -200,7 +208,8 @@ class Project(flow.FlowProject):
         # Manually 'merge' the various global options defined for both the main parser
         # and the parent parser that are shared by all subparsers:
         for dest in ("verbose", "show_traceback", "debug"):
-            setattr(args, dest, getattr(args, "main_" + dest) or getattr(args, dest))
+            setattr(args, dest,
+                    getattr(args, "main_" + dest) or getattr(args, dest))
             delattr(args, "main_" + dest)
 
         # Read the config file and set the internal flag.
@@ -225,12 +234,14 @@ class Project(flow.FlowProject):
         logging.basicConfig(level=max(0, logging.WARNING - 10 * args.verbose))
 
         def _show_traceback_and_exit(error):
-            is_user_error = isinstance(error, (UserOperationError, UserConditionError))
+            is_user_error = isinstance(
+                error, (UserOperationError, UserConditionError))
             if is_user_error:
                 # Always show the user traceback cause.
                 error = error.__cause__
             if args.show_traceback or is_user_error:
-                traceback.print_exception(type(error), error, error.__traceback__)
+                traceback.print_exception(type(error), error,
+                                          error.__traceback__)
             if not args.show_traceback:
                 print(
                     "Execute with '--show-traceback' or '--debug' to show the "
@@ -284,7 +295,6 @@ class Project(flow.FlowProject):
                 )
             _show_traceback_and_exit(error)
 
-
     def _main_init(self, args):
 
         is_test = args.test
@@ -297,9 +307,9 @@ class Project(flow.FlowProject):
             num_iter = 1000
             phis = [1.2]
             max_strains = [1e-2, 2e-2, 3e-2, 4e-2, 6e-2, 8e-2]
-        
+
         project = self
-        
+
         if "initialized" not in project.doc:
             print("Initializing project")
             project.doc["initialized"] = True
@@ -312,7 +322,7 @@ class Project(flow.FlowProject):
         # Initialize the data space
 
         statepoint_grid_ka_lj = {
-            "it": range(num_iter), 
+            "it": range(num_iter),
             "phi": phis,
             "max_strain": max_strains
         }
@@ -326,10 +336,8 @@ class Project(flow.FlowProject):
                 job.document['init'] = True
                 project.doc["cur_seed"] += 1
 
-
     def _main_clear(self, _args):
         safe_clean_signac_project(self.root_directory(), prepend_monk=False)
-
 
     def main(self):
 
@@ -371,7 +379,6 @@ class Project(flow.FlowProject):
             help="Run parameters for testing",
         )
         parser_init.set_defaults(func=self._main_init)
-        
 
         parser_clear = subparsers.add_parser(
             "clear",
@@ -380,7 +387,9 @@ class Project(flow.FlowProject):
         )
         parser_clear.set_defaults(func=self._main_clear)
 
-        self._new_main(parser=parser, subparsers=subparsers, base_parser=base_parser)
+        self._new_main(parser=parser,
+                       subparsers=subparsers,
+                       base_parser=base_parser)
 
 
 @Project.operation
@@ -396,9 +405,7 @@ def init_state(job: signac.Project.Job):
 
     rng = prep.init_rng(seed)
     L = prep.len_from_phi(N, phi, dim=2)
-    snap = prep.uniform_random_snapshot(
-        N, L, rng, dim=2, diams=[7/6, 5/6]
-    )
+    snap = prep.uniform_random_snapshot(N, L, rng, dim=2, diams=[7 / 6, 5 / 6])
     sim.create_state_from_snapshot(snap)
 
     hoomd.write.GSD.write(sim.state, job.fn("init.gsd"))
@@ -435,11 +442,11 @@ def run_sim(job: signac.Project.Job):
     sim.operations.integrator = fire
 
     thermodynamic_properties = hoomd.md.compute.ThermodynamicQuantities(
-    filter=hoomd.filter.All())
+        filter=hoomd.filter.All())
     sim.operations.computes.append(thermodynamic_properties)
 
     class xyLogger:
-        
+
         def __init__(self, sim: hoomd.Simulation):
             self._sim = sim
 
@@ -455,25 +462,22 @@ def run_sim(job: signac.Project.Job):
     logger[('box', 'xy')] = (xy_logger, 'value', 'scalar')
     logger.add(thermodynamic_properties, quantities=["potential_energy"])
 
-    table = hoomd.write.Table(trigger=hoomd.trigger.Periodic(1000), logger=logger)
+    table = hoomd.write.Table(trigger=hoomd.trigger.Periodic(1000),
+                              logger=logger)
 
     trig = methods.NextTrigger()
 
-    gsd_writer = hoomd.write.GSD(
-        filename=job.fn("traj.gsd"),
-        trigger=trig,
-        mode='wb',
-        filter=hoomd.filter.All(),
-        log=logger
-    )
+    gsd_writer = hoomd.write.GSD(filename=job.fn("traj.gsd"),
+                                 trigger=trig,
+                                 mode='wb',
+                                 filter=hoomd.filter.All(),
+                                 log=logger)
 
-    gsd_writer_quench = hoomd.write.GSD(
-        filename=job.fn("quench.gsd"),
-        trigger=hoomd.trigger.Periodic(100),
-        mode='wb',
-        filter=hoomd.filter.All(),
-        log=logger
-    )
+    gsd_writer_quench = hoomd.write.GSD(filename=job.fn("quench.gsd"),
+                                        trigger=hoomd.trigger.Periodic(100),
+                                        mode='wb',
+                                        filter=hoomd.filter.All(),
+                                        log=logger)
 
     sim.operations.writers.append(table)
     sim.operations.writers.append(gsd_writer)
@@ -491,15 +495,18 @@ def run_sim(job: signac.Project.Job):
 
     sim.operations.writers.pop()
 
-    steps = int(max_strain/strain_step)
-    write_steps = int(dumps/4)
-    period = int(steps/write_steps)
+    steps = int(max_strain / strain_step)
+    write_steps = int(dumps / 4)
+    period = int(steps / write_steps)
 
     print(period)
-    
-    sub_steps = np.linspace(0.0, max_strain, steps+1)
 
-    xy_steps = np.concatenate([sub_steps[1:], sub_steps[::-1][1:], -sub_steps[1:], -sub_steps[::-1][1:]])
+    sub_steps = np.linspace(0.0, max_strain, steps + 1)
+
+    xy_steps = np.concatenate([
+        sub_steps[1:], sub_steps[::-1][1:], -sub_steps[1:],
+        -sub_steps[::-1][1:]
+    ])
 
     for _ in range(cycles):
         for i, xy in enumerate(xy_steps):
@@ -509,20 +516,22 @@ def run_sim(job: signac.Project.Job):
             fire.reset()
             while not fire.converged:
                 sim.run(100)
-            if (i+1) % period == 0:
+            if (i + 1) % period == 0:
                 trig.next()
                 sim.run(1)
 
     job.doc["simulated"] = True
 
+
 @Project.operation
 @Project.pre.after(run_sim)
 @Project.post.true('d2min_stob_computed')
 def compute_strob_d2min(job: signac.Project.Job):
-    
+
     # D2min computed from stroboscopic simulation frames (when a full period has cycled)
 
     pass
+
 
 @Project.operation
 @Project.pre.after(run_sim)
@@ -533,20 +542,22 @@ def compute_fine_d2min(job: signac.Project.Job):
 
     pass
 
+
 @Project.operation
 @Project.pre.after(run_sim)
 @Project.post.true('t1_stob_computed')
 def compute_strob_t1(job: signac.Project.Job):
-    
+
     # T1 events computed from stroboscopic simulation frames (when a full period has cycled)
 
     pass
+
 
 @Project.operation
 @Project.pre.after(run_sim)
 @Project.post.true('t1_fine_computed')
 def compute_fine_t1(job: signac.Project.Job):
-    
+
     # T1 events computed between each and every frame in the simulation
 
     pass
@@ -556,13 +567,14 @@ def compute_fine_t1(job: signac.Project.Job):
 @Project.pre.after(run_sim)
 @Project.post.true('qlm_stob_computed')
 def compute_strob_qlm(job: signac.Project.Job):
-    
+
     # T1 events computed between each and every frame in the simulation
 
     pass
 
 
-project: Project = Project.init_project(name="OscillatoryMem", root=project_path("oscillatory-mem"))
+project: Project = Project.init_project(name="OscillatoryMem",
+                                        root=project_path("oscillatory-mem"))
 
 if __name__ == '__main__':
     project.main()

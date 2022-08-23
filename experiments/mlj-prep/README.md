@@ -1,0 +1,1 @@
+After fixing a bug with the MLJ potential, it appears that it is creating stable packings when initialized from a cubic lattice. Probably a good idea to start with a low packing fraction and slowly compress to the target packing fraction, or just let a NPT or NPH integrator do the job.

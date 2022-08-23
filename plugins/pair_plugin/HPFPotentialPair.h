@@ -146,6 +146,17 @@ template<class evaluator> class HPFPotentialPair : public ForceCompute
             }
         }
 
+    void getHIShearRate(vec3<Scalar>& shear_rate) const
+        {
+        shear_rate = m_hi_shear_rate;
+        }
+
+    void setHIShearRate(vec3<Scalar> shear_rate)
+        {
+        m_hi_shear_rate = vec_to_scalar3(shear_rate);
+        // m_hi_vorticity = vec_to_scalar3(shear_rate); // This is wrong
+        }
+
     void clearDynamicState()
         {
         m_dynamic_state_flag = false;
@@ -184,6 +195,9 @@ template<class evaluator> class HPFPotentialPair : public ForceCompute
         }
 
     bool m_log_pair_info = false;
+    bool m_hi = false; //!< Control whether to compute hydrodynamic interactions
+    Scalar3 m_hi_shear_rate = make_scalar3(0.0, 0.0, 0.0); //!< Shear rate for hydrodynamic interactions
+    Scalar3 m_hi_vorticity = make_scalar3(0.0, 0.0, 0.0); //!< Shear rate for hydrodynamic interactions
     Scalar m_gamma = Scalar(0.0);
 
     protected:
@@ -778,13 +792,6 @@ template<class evaluator> void HPFPotentialPair<evaluator>::computeForces(uint64
 
                 force += force_slide;
 
-                Scalar a_ij = Scalar(2.0) * di * dj / (di + dj);
-                vec3<Scalar> ur_pre = (v_j - v_i) - cross(di * w_i + dj * w_j, v_unit_dx);
-                auto tmp = ur_pre - v_unit_dx * dot(ur_pre, v_unit_dx) * m_deltaT;
-                *xi_it += make_scalar3(tmp.x, tmp.y, tmp.z);
-                tmp = a_ij * cross(w_i - w_j, v_unit_dx) * m_deltaT;
-                *psi_it += make_scalar3(tmp.x, tmp.y, tmp.z);
-
                 auto torque_slide = cross(v_unit_dx, force_slide);
                 auto torque_roll = cross(v_unit_dx, force_roll);
                 torque_i = di * torque_slide + a_ij * torque_roll;
@@ -792,6 +799,13 @@ template<class evaluator> void HPFPotentialPair<evaluator>::computeForces(uint64
                 ti.x += torque_i.x;
                 ti.y += torque_i.y;
                 ti.z += torque_i.z;
+
+                Scalar a_ij = Scalar(2.0) * di * dj / (di + dj);
+                vec3<Scalar> ur_pre = (v_j - v_i) - cross(di * w_i + dj * w_j, v_unit_dx);
+                auto tmp = ur_pre - v_unit_dx * dot(ur_pre, v_unit_dx) * m_deltaT;
+                *xi_it += make_scalar3(tmp.x, tmp.y, tmp.z);
+                tmp = a_ij * cross(w_i - w_j, v_unit_dx) * m_deltaT;
+                *psi_it += make_scalar3(tmp.x, tmp.y, tmp.z);
 
                 // TODO need to verify that this is the correct, but
                 // since we assume the bodies are spherical, their
@@ -853,12 +867,12 @@ template<class evaluator> void HPFPotentialPair<evaluator>::computeForces(uint64
 
         if (m_gamma != 0.0)
             {
-            fi.x -= v_i.x * m_gamma;
-            fi.y -= v_i.y * m_gamma;
-            fi.z -= v_i.z * m_gamma;
-            ti.x -= w_i.x * m_gamma;
-            ti.y -= w_i.y * m_gamma;
-            ti.z -= w_i.z * m_gamma;
+            fi.x -= (v_i.x - m_hi_shear_rate.x * pi.y - m_hi_shear_rate.y * pi.z) * m_gamma * m_deltaT;
+            fi.y -= (v_i.y - m_hi_shear_rate.y * ) * m_gamma * m_deltaT;
+            fi.z -= v_i.z * m_gamma * m_deltaT;
+            ti.x -= w_i.x * m_gamma * m_deltaT;
+            ti.y -= w_i.y * m_gamma * m_deltaT;
+            ti.z -= w_i.z * m_gamma * m_deltaT;
             }
 
         // finally, increment the force, potential energy and virial for
@@ -928,7 +942,8 @@ template<class T> void export_HPFPotentialPair(pybind11::module& m, const std::s
         .def("slotWriteGSDShapeSpec", &HPFPotentialPair<T>::slotWriteGSDShapeSpec)
         .def("connectGSDShapeSpec", &HPFPotentialPair<T>::connectGSDShapeSpec)
         .def_readwrite("log_pair_info", &HPFPotentialPair<T>::m_log_pair_info)
-        .def_readwrite("gamma", &HPFPotentialPair<T>::m_gamma);
+        .def_readwrite("gamma", &HPFPotentialPair<T>::m_gamma)
+        .def_property("hi_shear_rate", &HPFPotentialPair<T>::getHIShearRate, &HPFPotentialPair<T>::setHIShearRate);
     }
 
     } // end namespace detail

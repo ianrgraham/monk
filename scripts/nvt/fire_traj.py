@@ -135,6 +135,7 @@ sim.operations.writers.append(gsd_writer)
 
 # iterate over traj frames
 for idx, snap in enumerate(traj):
+    print(idx, len(traj))
 
     custom_updater.set_snap(snap)
     async_trig.activate()

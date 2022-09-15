@@ -1,6 +1,44 @@
 from typing import Callable, Optional
 import hoomd
+import gsd.hoomd
 import numpy as np
+
+
+class AsyncTrigger(hoomd.trigger.Trigger):
+    """Used by FIRE quench method."""
+
+    def __init__(self):
+        self.async_trig = False
+        hoomd.trigger.Trigger.__init__(self)
+
+    def activate(self):
+        self.async_trig = True
+
+    def compute(self, timestep):
+        out = self.async_trig
+        # if out:
+        #     print("Triggered")
+        self.async_trig = False
+        return out
+
+
+class UpdatePosZeroVel(hoomd.custom.Action):
+    """Used by FIRE quench method."""
+
+    def __init__(self, new_snap=None):
+        self.new_snap = new_snap
+
+    def set_snap(self, new_snap):
+        self.new_snap = new_snap
+
+    def act(self, timestep):
+        old_snap = self._state.get_snapshot()
+        if old_snap.communicator.rank == 0:
+            N = old_snap.particles.N
+            old_snap.particles.velocity[:] = np.zeros((N, 3))
+            old_snap.particles.position[:] = self.new_snap.particles.position
+        self._state.set_snapshot(old_snap)
+
 
 class RemoteTrigger(hoomd.trigger.Trigger):
     """Trigger which is activated on the next timestep by calling the `trigger`
@@ -20,11 +58,12 @@ class RemoteTrigger(hoomd.trigger.Trigger):
         else:
             return False
 
+
 class RestartablePeriodicTrigger(hoomd.trigger.Trigger):
     """Periodic trigger that can be reset."""
 
     def __init__(self, period: int, phase: Optional[int] = None):
-        assert(period >= 1)
+        assert (period >= 1)
         hoomd.trigger.Trigger.__init__(self)
         self.period = period
         self.phase = phase
@@ -44,6 +83,7 @@ class RestartablePeriodicTrigger(hoomd.trigger.Trigger):
             self.state += 1
             return False
 
+
 class UpdatePosThermalizeVel(hoomd.custom.Action):
     """"""
 
@@ -61,12 +101,13 @@ class UpdatePosThermalizeVel(hoomd.custom.Action):
         old_snap = self._state.get_snapshot()
         if old_snap.communicator.rank == 0:
             N = old_snap.particles.N
-            new_velocity = np.zeros((N,3))
+            new_velocity = np.zeros((N, 3))
             for i in range(N):
                 old_snap.particles.velocity[i] = new_velocity[i]
                 old_snap.particles.position[i] = self.snap.particles.position[i]
         self._state.set_snapshot(old_snap)
         self._state.thermalize_particle_momenta(hoomd.filter.All(), self.temp)
+
 
 class PastSnapshotsBuffer(hoomd.custom.Action):
     """Custom action to hold onto past simulation snapshots (in memory)."""
@@ -87,6 +128,7 @@ class PastSnapshotsBuffer(hoomd.custom.Action):
         snap = self._state.get_snapshot()
         self.snap_buffer.append(snap)
 
+
 class LogTrigger(hoomd.trigger.Trigger):
 
     def __init__(self, base: int, start: float, step: float, ref_timestep: float):
@@ -104,6 +146,7 @@ class LogTrigger(hoomd.trigger.Trigger):
             self.cidx += self.step
             self.cstep = self.base**self.cidx
         return result
+
 
 class NextTrigger(hoomd.trigger.Trigger):
 
@@ -125,6 +168,7 @@ class NextTrigger(hoomd.trigger.Trigger):
         else:
             return False
 
+
 class ConstantShear(hoomd.custom.Action):
     """Apply a constant shear rate to the simulation box.
 
@@ -133,6 +177,7 @@ class ConstantShear(hoomd.custom.Action):
     - gamma: float - the shear rate (in units of box ratio per time step)
     - timestep: int - the initial reference timestep
     - pair: str - the dimension pair to apply the shear to"""
+
     def __init__(self, gamma: float, timestep: int, pair: str = "xz"):
         super().__init__()
         self._gamma = gamma
@@ -150,21 +195,21 @@ class ConstantShear(hoomd.custom.Action):
         self._last_timestep = timestep
         box = self._state.box
         match self._pair_mode:
-            case 0: # xy
+            case 0:  # xy
                 xy = box.xy + self._gamma * time_diff
                 if xy > 0.5:
                     xy -= 1.0
                 elif xy < -0.5:
                     xy += 1.0
                 box.xy = xy
-            case 1: # yz
+            case 1:  # yz
                 yz = box.yz + self._gamma * time_diff
                 if yz > 0.5:
                     yz -= 1.0
                 elif yz < -0.5:
                     yz += 1.0
                 box.yz = yz
-            case 2: # xz
+            case 2:  # xz
                 xz = box.xz + self._gamma * time_diff
                 if xz > 0.5:
                     xz -= 1.0
@@ -172,3 +217,45 @@ class ConstantShear(hoomd.custom.Action):
                     xz += 1.0
                 box.xz = xz
         self._state.set_box(box)
+
+
+def fire_minimize_frames(
+        sim: hoomd.Simulation,
+        input_traj: gsd.hoomd.HOOMDTrajectory,
+        out_file: str,
+        fire_steps: int = 10_000
+):
+    """Generate a FIRE minimized trajectory from another."""
+
+    if not isinstance(sim.operations.integrator, hoomd.md.minimize.FIRE):
+        raise ValueError("Loaded integrator is not a FIRE minimizer.")
+
+    fire = sim.operations.integrator
+
+    custom_updater = UpdatePosZeroVel()
+    async_trig = AsyncTrigger()
+    async_write_trig = AsyncTrigger()
+
+    custom_op = hoomd.update.CustomUpdater(action=custom_updater,
+                                           trigger=async_trig)
+
+    gsd_writer = hoomd.write.GSD(filename=str(out_file),
+                                 trigger=async_write_trig,
+                                 mode='wb',
+                                 filter=hoomd.filter.All())
+
+    sim.operations.add(custom_op)
+    sim.operations.writers.append(gsd_writer)
+    for idx, snap in enumerate(input_traj):
+        # print(idx)
+
+        custom_updater.set_snap(snap)
+        async_trig.activate()
+        sim.run(2)
+        fire.reset()
+
+        while not fire.converged:
+            sim.run(fire_steps)
+
+        async_write_trig.activate()
+        sim.run(2)

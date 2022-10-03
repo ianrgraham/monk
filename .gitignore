@@ -33,12 +33,16 @@ droplet_environment.yml
 
 build
 
+# animations
 *.gif
 *.mp4
+*.mov
+*.avi
 
 # signac projects
 workflows/**/root
 workflows/**/workspace
 experiments/**/workspace
+
 
 optix

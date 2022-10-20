@@ -1,0 +1,54 @@
+# SETTINGS
+atom_style sphere
+comm_modify mode single vel yes
+atom_modify map yes
+newton off
+boundary p p p
+
+# READ THE PARTICLE CONFIGURATION
+read_data data.file
+
+# SPECIFY THE PARTICLE-PARTICLE INTERACTION
+pair_style hybrid/overlay granular yukawa/colloid 0.01 3.0
+pair_coeff * * granular hooke 1000.0 100.0 tangential linear_history 1000.0 1.0 0.4
+pair_coeff * * yukawa/colloid 1.0
+
+variable srate equal 0.01
+velocity all create 0.01 12345
+
+# SPECIFY THE TIMESTEP AND EQUILIBRATE
+timestep 0.001
+variable ts equal 0.001
+fix 1 all nph/sphere y 10.0 10.0 10.0
+
+dump pre all custom 1 pre3.dump id x y z radius vx vy vz
+
+compute 1 all stress/atom NULL
+compute 2 all reduce sum c_1[4]
+
+run 1000
+undump pre
+reset_timestep 0
+
+# RESPECIFY PAIR STYLE
+pair_style hybrid/overlay granular yukawa/colloid 0.01 3.0 lubricate/poly 100.0 1 0 0.1 2.0 1 0
+pair_coeff * * granular hooke 1000.0 100.0 tangential linear_history 1000.0 1.0 0.4
+pair_coeff * * yukawa/colloid 1.0
+pair_coeff 1 1 lubricate/poly 1.26666666667 2.0
+pair_coeff 1 2 lubricate/poly 1.1 2.0
+pair_coeff 2 2 lubricate/poly 0.93333333333 2.0
+
+# SPECIFY THE OUTPUTS
+fix 2 all ave/time 1 100 100 c_2
+variable StrainPerTs equal v_srate*v_ts
+variable strain equal v_StrainPerTs*step
+variable sigmaxy equal f_2
+thermo 100
+thermo_style custom step v_strain v_sigmaxy pe ke lx ly lz vol press
+dump traj all custom 100 run3.bin id x y z radius vx vy vz
+log run.log
+velocity all create 0.1 12345
+
+# SPECIFY THE INTEGRATION SCHEME AND RUN
+fix 3 all deform 1 xy erate ${srate} remap v flip yes
+run 1000

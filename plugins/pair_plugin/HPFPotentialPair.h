@@ -148,7 +148,7 @@ template<class evaluator> class HPFPotentialPair : public ForceCompute
 
     void getHIShearRate(vec3<Scalar>& shear_rate) const
         {
-        shear_rate = m_hi_shear_rate;
+        shear_rate = vec3<Scalar>(m_hi_shear_rate);
         }
 
     void setHIShearRate(vec3<Scalar> shear_rate)
@@ -781,6 +781,8 @@ template<class evaluator> void HPFPotentialPair<evaluator>::computeForces(uint64
                 Scalar force_sqr = force_divr * force_divr * rsq;
                 vec3<Scalar> v_unit_dx(dx.x * rinv, dx.y * rinv, dx.z * rinv);
 
+                Scalar a_ij = Scalar(2.0) * di * dj / (di + dj);
+
                 force_slide = m_ks * xi_ij;
                 force_roll = m_kr * psi_ij;
                 Scalar slide_sqr = dot(force_slide, force_slide);
@@ -800,7 +802,7 @@ template<class evaluator> void HPFPotentialPair<evaluator>::computeForces(uint64
                 ti.y += torque_i.y;
                 ti.z += torque_i.z;
 
-                Scalar a_ij = Scalar(2.0) * di * dj / (di + dj);
+                
                 vec3<Scalar> ur_pre = (v_j - v_i) - cross(di * w_i + dj * w_j, v_unit_dx);
                 auto tmp = ur_pre - v_unit_dx * dot(ur_pre, v_unit_dx) * m_deltaT;
                 *xi_it += make_scalar3(tmp.x, tmp.y, tmp.z);
@@ -868,7 +870,7 @@ template<class evaluator> void HPFPotentialPair<evaluator>::computeForces(uint64
         if (m_gamma != 0.0)
             {
             fi.x -= (v_i.x - m_hi_shear_rate.x * pi.y - m_hi_shear_rate.y * pi.z) * m_gamma * m_deltaT;
-            fi.y -= (v_i.y - m_hi_shear_rate.y * ) * m_gamma * m_deltaT;
+            fi.y -= (v_i.y - m_hi_shear_rate.z * pi.z) * m_gamma * m_deltaT;
             fi.z -= v_i.z * m_gamma * m_deltaT;
             ti.x -= w_i.x * m_gamma * m_deltaT;
             ti.y -= w_i.y * m_gamma * m_deltaT;

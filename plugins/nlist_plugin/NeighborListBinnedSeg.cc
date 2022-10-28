@@ -218,7 +218,7 @@ void export_NeighborListBinnedSeg(pybind11::module& m)
     pybind11::class_<NeighborListBinnedSeg, NeighborList, std::shared_ptr<NeighborListBinnedSeg>>(
         m,
         "NeighborListBinnedSeg")
-        .def(pybind11::init<std::shared_ptr<SystemDefinition>, Scalar>())
+        .def(pybind11::init<std::shared_ptr<SystemDefinition>, Scalar, std::vector<std::pair<unsigned int, unsigned int>>>())
         .def_property("deterministic",
                       &NeighborListBinnedSeg::getDeterministic,
                       &NeighborListBinnedSeg::setDeterministic);

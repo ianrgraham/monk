@@ -4,7 +4,7 @@ from hoomd.data.typeconverter import OnlyFrom, OnlyTypes
 from hoomd.logging import log
 from hoomd.mesh import Mesh
 from hoomd.md import _md
-from hoomd._nlist_plugin import _nlist_plugin
+from hoomd.nlist_plugin import _nlist_plugin
 from hoomd.operation import _HOOMDBaseObject
 
 class NEBCell(hoomd.md.nlist.NeighborList):

@@ -1,7 +1,9 @@
 
-set(COMPONENT_NAME pair_plugin)
+set(COMPONENT_NAME nlist_plugin)
 
 set(_${COMPONENT_NAME}_sources
+    NeighborListBinnedSeg.cc
+    CellListSeg.cc
     module.cc
     )
 

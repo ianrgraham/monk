@@ -665,7 +665,7 @@ namespace detail
 void export_CellListSeg(pybind11::module& m)
     {
     pybind11::class_<CellListSeg, Compute, std::shared_ptr<CellListSeg>>(m, "CellListSeg")
-        .def(pybind11::init<std::shared_ptr<SystemDefinition>>())
+        .def(pybind11::init<std::shared_ptr<SystemDefinition>, std::pair<unsigned int, unsigned int>>())
         .def("setNominalWidth", &CellListSeg::setNominalWidth)
         .def("setRadius", &CellListSeg::setRadius)
         .def("setComputeTDB", &CellListSeg::setComputeTDB)

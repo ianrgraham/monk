@@ -28,9 +28,9 @@ class NEBCell(hoomd.md.nlist.NeighborList):
 
     def _attach(self):
         if isinstance(self._simulation.device, hoomd.device.CPU):
-            nlist_cls = _nlist_plugin.NeighborListBinnedNEB
+            nlist_cls = _nlist_plugin.NeighborListBinnedSeg
         else:
-            nlist_cls = _nlist_plugin.NeighborListGPUBinnedNEB
+            nlist_cls = _nlist_plugin.NeighborListGPUBinnedSeg
         self._cpp_obj = nlist_cls(self._simulation.state._cpp_sys_def,
                                   self.buffer, self.segments)
 

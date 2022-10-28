@@ -72,6 +72,10 @@ class PYBIND11_EXPORT NeighborListBinnedSeg : public NeighborList
     virtual void buildNlist(uint64_t timestep);
     };
 
+namespace detail
+    {
+    void export_NeighborListBinnedSeg(pybind11::module& m);
+    } // end namespace detail
     } // end namespace md
     } // end namespace hoomd
 

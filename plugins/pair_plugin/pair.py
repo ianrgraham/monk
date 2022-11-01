@@ -69,6 +69,7 @@ class ModLJ(_pair.Pair):
 
     # Name of the potential we want to reference on the C++ side
     _cpp_class_name = "PotentialPairMLJ"
+    _ext_module = _pair_plugin
 
     def __init__(self,
                  nlist,
@@ -83,37 +84,6 @@ class ModLJ(_pair.Pair):
                               delta=float,
                               len_keys=2))
         self._add_typeparam(params)
-
-    def _attach(self):
-        """Slightly modified with regard to the base class `md.Pair`.
-
-        In particular, we search for `PotentialPairExample` in `hoomd.pair_plugin._pair_plugin`
-        instead of `hoomd.md._md`.
-        """
-        # create the c++ mirror class
-        if not self.nlist._added:
-            self.nlist._add(self._simulation)
-        else:
-            if self._simulation != self.nlist._simulation:
-                raise RuntimeError("{} object's neighbor list is used in a "
-                                   "different simulation.".format(type(self)))
-        if not self.nlist._attached:
-            self.nlist._attach()
-        # Find definition of _cpp_class_name in _pair_plugin
-        if isinstance(self._simulation.device, hoomd.device.CPU):
-            cls = getattr(_pair_plugin, self._cpp_class_name)
-            self.nlist._cpp_obj.setStorageMode(
-                _md.NeighborList.storageMode.half)
-        else:
-            cls = getattr(_pair_plugin, self._cpp_class_name + "GPU")
-            self.nlist._cpp_obj.setStorageMode(
-                _md.NeighborList.storageMode.full)
-        self._cpp_obj = cls(self._simulation.state._cpp_sys_def,
-                            self.nlist._cpp_obj)
-
-        grandparent = super(_pair.Pair, self)
-        grandparent._attach()
-
 
 class Hertzian(_pair.Pair):
     r"""Hertzian pair potential.
@@ -151,6 +121,7 @@ class Hertzian(_pair.Pair):
 
     # Name of the potential we want to reference on the C++ side
     _cpp_class_name = "PotentialPairHertzian"
+    _ext_module = _pair_plugin
 
     def __init__(self,
                  nlist,
@@ -162,36 +133,6 @@ class Hertzian(_pair.Pair):
             'params', 'particle_types',
             TypeParameterDict(epsilon=float, sigma=float, len_keys=2))
         self._add_typeparam(params)
-
-    def _attach(self):
-        """Slightly modified with regard to the base class `md.Pair`.
-
-        In particular, we search for `PotentialPairHertzian` in `_pair_plugin`
-        instead of `md.pair` as we would have done in the source code.
-        """
-        # create the c++ mirror class
-        if not self.nlist._added:
-            self.nlist._add(self._simulation)
-        else:
-            if self._simulation != self.nlist._simulation:
-                raise RuntimeError("{} object's neighbor list is used in a "
-                                   "different simulation.".format(type(self)))
-        if not self.nlist._attached:
-            self.nlist._attach()
-        # Find definition of _cpp_class_name in _pair_plugin
-        if isinstance(self._simulation.device, hoomd.device.CPU):
-            cls = getattr(_pair_plugin, self._cpp_class_name)
-            self.nlist._cpp_obj.setStorageMode(
-                _md.NeighborList.storageMode.half)
-        else:
-            cls = getattr(_pair_plugin, self._cpp_class_name + "GPU")
-            self.nlist._cpp_obj.setStorageMode(
-                _md.NeighborList.storageMode.full)
-        self._cpp_obj = cls(self._simulation.state._cpp_sys_def,
-                            self.nlist._cpp_obj)
-
-        grandparent = super(_pair.Pair, self)
-        grandparent._attach()
 
 
 class HPFPair(force.Force):
@@ -227,6 +168,7 @@ class HPFPair(force.Force):
     # The accepted modes for the potential. Should be reset by subclasses with
     # restricted modes.
     _accepted_modes = ("none", )
+    _ext_module = _pair_plugin
 
     @log(category="pair", requires_run=True)
     def nlist_pairs(self):
@@ -302,35 +244,6 @@ class HPFPair(force.Force):
         # neighbor list when not attached we handle correctly.
         self._add_dependency(self.nlist)
 
-    def _attach(self):
-        """Slightly modified with regard to the base class `md.Friction`.
-        """
-        # create the c++ mirror class
-        if not self.nlist._added:
-            self.nlist._add(self._simulation)
-        else:
-            if self._simulation != self.nlist._simulation:
-                raise RuntimeError("{} object's neighbor list is used in a "
-                                   "different simulation.".format(type(self)))
-        if not self.nlist._attached:
-            self.nlist._attach()
-        # Find definition of _cpp_class_name in _pair_plugin
-        if isinstance(self._simulation.device, hoomd.device.CPU):
-            cls = getattr(_pair_plugin, self._cpp_class_name)
-            self.nlist._cpp_obj.setStorageMode(
-                _md.NeighborList.storageMode.half)
-        else:
-            # TODO GPU version is not yet implemented
-            print("GPU version not yet implemented")
-            cls = getattr(_pair_plugin, self._cpp_class_name)  #  + "GPU"
-            self.nlist._cpp_obj.setStorageMode(
-                _md.NeighborList.storageMode.full)
-        self._cpp_obj = cls(self._simulation.state._cpp_sys_def,
-                            self.nlist._cpp_obj, self.mus, self.mur, self.ks,
-                            self.kr)
-
-        super()._attach()
-
     def _setattr_param(self, attr, value):
         if attr == "nlist":
             self._nlist_setter(value)
@@ -353,6 +266,7 @@ class HarmHPF(HPFPair):
     """Harmonic hard-particle interaction with frictional force"""
 
     _cpp_class_name = "PotentialPairHPF"
+    _ext_module = _pair_plugin
 
     def __init__(self,
                  nlist,

@@ -1,6 +1,5 @@
 #!python
 
-from tracemalloc import Snapshot
 from typing import Tuple
 import flow
 import signac

@@ -1,3 +1,6 @@
 [submodule "hoomd-blue"]
 	path = hoomd-blue
 	url = https://github.com/ianrgraham/hoomd-blue
+[submodule "plugins/neb_plugin"]
+	path = plugins/neb_plugin
+	url = git@github.com:ianrgraham/hoomd-neb.git

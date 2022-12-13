@@ -87,6 +87,7 @@
         "semaphore": "cpp",
         "__nullptr": "cpp",
         "*.ipp": "cpp",
-        "latch": "cpp"
+        "latch": "cpp",
+        "target": "cpp"
     }
 }

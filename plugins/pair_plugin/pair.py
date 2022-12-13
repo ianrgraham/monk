@@ -81,9 +81,82 @@ class ModLJ(_pair.Pair):
             'params', 'particle_types',
             TypeParameterDict(epsilon=float,
                               sigma=float,
-                              delta=float,
+                              delta=0.0,
                               len_keys=2))
         self._add_typeparam(params)
+
+
+class MLJ(ModLJ):
+    pass
+
+
+class WLJ(_pair.Pair):
+    r"""Modified Lennard-Jones pair potential to showcase an example of a pair plugin.
+
+    Args:
+        nlist (`hoomd.md.nlist.NeighborList`): Neighbor list.
+        default_r_cut (float): Default cutoff radius :math:`[\mathrm{length}]`.
+        default_r_on (float): Default turn-on radius :math:`[\mathrm{length}]`.
+        mode (str): Energy shifting/smoothing mode.
+
+    `WLJ` specifies that a modified Lennard-Jones pair potential should be
+    applied between every non-excluded particle pair in the simulation.
+
+    .. math::
+        :nowrap:
+
+        \begin{eqnarray*}
+        V_{\mathrm{LJ}}(r)  = & 4 \varepsilon \left[ \left(
+        \frac{\sigma}{r-\Delta} \right)^{12} - \left( \frac{\sigma}{r-\Delta}
+        \right)^{6} \right]; & r < r_{\mathrm{cut}} \\
+        = & 0; & r \ge r_{\mathrm{cut}} \\
+        \end{eqnarray*}
+
+    See `Pair` for details on how forces are calculated and the available
+    energy shifting and smoothing modes.
+
+    .. py:attribute:: params
+
+        The example potential parameters. The dictionary has the following keys:
+
+        * ``epsilon`` (`float`, **required**) -
+          energy parameter :math:`\varepsilon` :math:`[\mathrm{energy}]`
+        * ``sigma`` (`float`, **required**) -
+          particle size :math:`\sigma` :math:`[\mathrm{length}]`
+        * ``delta`` (`float`, **required**) -
+          particle size :math:`\sigma` :math:`[\mathrm{length}]`
+
+        Type: `TypeParameter` [`tuple` [``particle_type``, ``particle_type``],
+        `dict`]
+
+    Example::
+
+        nl = nlist.Cell()
+        lj = pair.ExamplePair(nl, default_r_cut=2.5)
+        lj.params[('A', 'A')] = {'sigma': 1.0, 'epsilon': 1.0, 'delta': 0.25}
+        lj.r_cut[('A', 'A')] = 2.5
+    """
+
+    # Name of the potential we want to reference on the C++ side
+    _cpp_class_name = "PotentialPairWLJ"
+    _ext_module = _pair_plugin
+
+    def __init__(self,
+                 nlist,
+                 default_r_cut=None,
+                 default_r_on=0.,
+                 mode='none'):
+        super().__init__(nlist, default_r_cut, default_r_on, mode)
+        params = TypeParameter(
+            'params', 'particle_types',
+            TypeParameterDict(epsilon=float,
+                              sigma=float,
+                              delta=0.0,
+                              epsilon_a=float,
+                              delta_a=0.0,
+                              len_keys=2))
+        self._add_typeparam(params)
+
 
 class Hertzian(_pair.Pair):
     r"""Hertzian pair potential.

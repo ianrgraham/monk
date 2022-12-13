@@ -5,6 +5,7 @@
 // Include the defined classes that are to be exported to python
 #include "EvaluatorPairHertzian.h"
 #include "EvaluatorPairMLJ.h"
+#include "EvaluatorPairWLJ.h"
 #include "EvaluatorPairSpring.h"
 #include "HPFPotentialPair.h"
 #include "hoomd/md/PotentialPair.h"
@@ -26,10 +27,12 @@ namespace md
 PYBIND11_MODULE(_pair_plugin, m)
     {
     detail::export_PotentialPair<EvaluatorPairMLJ>(m, "PotentialPairMLJ");
+    detail::export_PotentialPair<EvaluatorPairWLJ>(m, "PotentialPairWLJ");
     detail::export_PotentialPair<EvaluatorPairHertzian>(m, "PotentialPairHertzian");
     detail::export_HPFPotentialPair<EvaluatorPairHarmSpring>(m, "PotentialPairHPF");
 #ifdef ENABLE_HIP
     detail::export_PotentialPairGPU<EvaluatorPairMLJ>(m, "PotentialPairMLJGPU");
+    detail::export_PotentialPairGPU<EvaluatorPairWLJ>(m, "PotentialPairWLJGPU");
     detail::export_PotentialPairGPU<EvaluatorPairHertzian>(m, "PotentialPairHertzianGPU");
     // TODO, write GPU implementation
     // detail::export_FrictionPotentialPairGPU<EvaluatorPairFrictionLJ>(m,

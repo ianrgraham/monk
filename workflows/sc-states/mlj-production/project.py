@@ -13,6 +13,9 @@ import glob
 import os
 import pickle
 import copy
+import gc
+import shutil
+import multiprocessing
 
 from monk import workflow, methods, pair, utils
 import schmeud._schmeud as _schmeud
@@ -273,6 +276,16 @@ def compute_analysis_sfs(job: signac.Project.Job):
     job.doc["analysis_sfs_computed"] = True
 
 
+class xyLogger:
+
+    def __init__(self, sim: hoomd.Simulation):
+        self._sim = sim
+
+    @property
+    def value(self):
+        return self._sim.state.box.xy
+
+
 # shear simulations
 @Project.operation
 # @Project.pre(lambda job: not job.doc.get('_CRYSTAL'))
@@ -283,13 +296,18 @@ def constant_shear_runs(job: signac.Project.Job):
     sp = job.sp
     doc = job.doc
 
+    print(job, sp, doc)
+
     project = job._project
 
     dt = project.doc["dt"]
 
-    shear_rates = [1e-2, 1e-3, 1e-4]
-    max_strain = 0.10
-    step_size = 1e-1
+    shear_rates = [1e-3, 1e-4, 1e-5]
+    # instead use const number of time steps
+    # max_strain = 0.40
+    # step_size = 1e-1
+
+    total_steps = 500_000
 
     def setup_sim(gsd_file, temp):
         sim = hoomd.Simulation(hoomd.device.GPU(), seed=doc["seed"])
@@ -306,47 +324,66 @@ def constant_shear_runs(job: signac.Project.Job):
 
         return sim
 
-    runs = glob.glob(job.fn("runs/temp-*/traj.gsd"))
+    def job_task(job, max_strain, shear_rate, temp):
+        output_dir = job.fn(f"shear_runs/rate-{shear_rate}/temp-{temp}")
+        if os.path.exists(output_dir + "/traj.gsd"):
+            return
+        os.makedirs(output_dir, exist_ok=True)
+
+        sim = setup_sim(run, float(temp))
+
+        sim.always_compute_pressure = True
+
+        log = hoomd.logging.Logger()
+
+        analyzer = hoomd.md.compute.ThermodynamicQuantities(filter=hoomd.filter.All())
+        xy_logger = xyLogger(sim)
+        sim.operations.computes.append(analyzer)
+
+        log.add(analyzer, quantities=["pressure", "pressure_tensor", "kinetic_temperature"])
+        log.add(sim, quantities=["timestep"])
+        log[('box', 'xy')] = (xy_logger, 'value', 'scalar')
+
+        box_i = sim.state.box
+        box_f = copy.deepcopy(box_i)
+        box_f.xy = max_strain
+        
+        total_steps = int(np.round(max_strain/shear_rate/dt))
+        shear_update_period = 1 # int(np.round(step_size/shear_rate))
+        trigger = hoomd.trigger.Periodic(shear_update_period, phase=sim.timestep)
+        variant = hoomd.variant.Ramp(0, 1, sim.timestep, total_steps)
+        updater = hoomd.update.BoxResize(trigger, box_i, box_f, variant)
+        sim.operations.updaters.append(updater)
+
+        write_trigger = hoomd.trigger.Periodic(10_000, phase=sim.timestep)
+        tmp_file = output_dir + "/_traj.gsd"
+        traj = output_dir + "/traj.gsd"
+        writer = hoomd.write.GSD(filename=tmp_file, trigger=write_trigger, mode="wb", log=log)
+        sim.operations.writers.append(writer)
+
+        # print(total_steps)
+
+        sim.run(total_steps)
+
+        del sim, box_i, box_f, log, analyzer, xy_logger, updater, writer, trigger, variant, write_trigger
+
+        gc.collect()
+
+        shutil.move(tmp_file, traj)
+
+    runs = sorted(glob.glob(job.fn("runs/temp-*/traj.gsd")))
     # print(runs)
-    for run in runs:
+    for run in runs[:10]:
         temp = utils.extract_between(run, "temp-", "/traj.gsd")
         print("temp:", temp)
+        processes = []
         for shear_rate in shear_rates:
-
-            output_dir = job.fn(f"shear_runs/rate-{shear_rate}/temp-{temp}")
-            # if os.path.exists(output_dir + "/traj.gsd"):
-            #     continue
-            os.makedirs(output_dir, exist_ok=True)
-
-            sim = setup_sim(run, float(temp))
-
-            sim.always_compute_pressure = True
-
-            log = hoomd.logging.Logger()
-
-            analyzer = hoomd.md.compute.ThermodynamicQuantities(filter=hoomd.filter.All())
-            sim.operations.computes.append(analyzer)
-
-            log.add(analyzer, quantities=["pressure", "pressure_tensor", "kinetic_temperature"])
-
-            box_i = sim.state.box
-            box_f = copy.deepcopy(box_i)
-            box_f.xy = max_strain
-            
-            total_steps = int(np.round(max_strain/shear_rate/dt))
-            shear_update_period = 1 # int(np.round(step_size/shear_rate))
-            trigger = hoomd.trigger.Periodic(shear_update_period, phase=sim.timestep)
-            variant = hoomd.variant.Ramp(0, 1, sim.timestep, sim.timestep + total_steps)
-            updater = hoomd.update.BoxResize(trigger, box_i, box_f, variant)
-            sim.operations.updaters.append(updater)
-
-            write_trigger = hoomd.trigger.Periodic(1000, phase=sim.timestep)
-            writer = hoomd.write.GSD(filename=output_dir + "/traj.gsd", trigger=write_trigger, mode="wb", log=log)
-            sim.operations.writers.append(writer)
-
-            print(total_steps)
-
-            sim.run(total_steps)
+            max_strain = total_steps*shear_rate*dt
+            process = multiprocessing.Process(target=job_task, args=(job, max_strain, shear_rate, temp))
+            process.start()
+            processes.append(process)
+        for process in processes:
+            process.join()
 
     job.doc["const_shear_ran"] = True
 

@@ -22,7 +22,8 @@ mpl.rcParams["axes.labelsize"] = "xx-large"
 
 # %%
 device = "gpu"
-device1 = hoomd.device.CPU()
+device1 = hoomd.device.GPU()
+n_images = 3
 
 def make_snap(box, pos):
     snap = gsd.hoomd.Snapshot()
@@ -38,9 +39,11 @@ def make_snap(box, pos):
 # %%
 # prepare lattice with a defect
 
-Nx = 10
+Nx = 100
 
 snap_box, snap_pos = freud.data.UnitCell.hex().generate_system((Nx, Nx, 1), scale=0.5)
+
+print(len(snap_pos))
 
 future_pos = np.copy(snap_pos)
 mid = future_pos[Nx*Nx,:].copy()
@@ -96,14 +99,14 @@ end = future_sim
 start.operations.integrator.nudge = False
 energy = []
 start.state.thermalize_particle_momenta(hoomd.filter.All(), kT=1.0)
-for i in range(50):
+for i in range(100):
     start.run(100)
     energy.append(start.operations.integrator.energy)
 start.operations.integrator.nudge = True
 
 end.operations.integrator.nudge = False
 end.state.thermalize_particle_momenta(hoomd.filter.All(), kT=1.0)
-for i in range(50):
+for i in range(100):
     end.run(100)
     energy.append(end.operations.integrator.energy)
 end.operations.integrator.nudge = True
@@ -121,7 +124,7 @@ render.render_disk_frame(end.state.get_snapshot(), Nx*0.6*2)
 start.operations.integrator.converged, end.operations.integrator.converged
 
 # %%
-filter
+filter = hoomd.filter.All()
 
 # %%
 init_snap = start.state.get_snapshot()
@@ -131,7 +134,7 @@ nlist = hoomd.md.nlist.Cell(0.3)
 hertzian = pair.bi_hertz(nlist)
 forces = [hertzian]
 
-neb_driver = neb.NEBDriver(init_snap, final_snap, n_images=10, forces=forces, filter=filter, device=device)
+neb_driver = neb.NEBDriver(init_snap, final_snap, n_images=n_images, forces=forces, filter=filter, device=device)
 neb_driver.k = 100.0
 
 print("neb made")

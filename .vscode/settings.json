@@ -3,5 +3,6 @@
     "python.linting.enabled": true,
     "C_Cpp.default.cppStandard": "c++20",
     "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
-    "jupyter.jupyterServerType": "local"
+    "jupyter.jupyterServerType": "local",
+    "C_Cpp.autoAddFileAssociations": false
 }

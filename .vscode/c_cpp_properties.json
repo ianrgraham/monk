@@ -28,12 +28,29 @@
             "configurationProvider": "ms-vscode.cmake-tools"
         },
         {
-            "name": "Linux GPU",
+            "name": "Linux MPI/TBB/LLVM",
             "includePath": [
                 "${workspaceFolder}/**",
-                "/usr/include/python3.10"
+                "/usr/include/python3.10",
+                "/usr/lib/x86_64-linux-gnu/openmpi/include",
+                "/usr/lib/llvm-14/include"
             ],
-            "defines": ["ENABLE_HIP"],
+            "defines": ["ENABLE_MPI", "ENABLE_TBB", "ENABLE_LLVM", "HOOMD_LLVM_INSTALL_PREFIX=\"somepath\""],
+            "compilerPath": "/usr/bin/clang++",
+            "cStandard": "c17",
+            "cppStandard": "c++20",
+            "intelliSenseMode": "linux-clang-x64",
+            "configurationProvider": "ms-vscode.cmake-tools"
+        },
+        {
+            "name": "Linux MPI/TBB/LLVM/GPU",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/usr/include/python3.10",
+                "/usr/lib/x86_64-linux-gnu/openmpi/include",
+                "/usr/lib/llvm-14/include"
+            ],
+            "defines": ["ENABLE_MPI", "ENABLE_TBB", "ENABLE_LLVM", "ENABLE_HIP", "__HIP_PLATFORM_NVCC__", "HOOMD_LLVM_INSTALL_PREFIX=\"somepath\"", "CUDA_ARCH=75"],
             "compilerPath": "/usr/bin/clang++",
             "cStandard": "c17",
             "cppStandard": "c++20",

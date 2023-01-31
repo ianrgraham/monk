@@ -46,3 +46,5 @@ experiments/**/workspace
 
 
 optix
+
+*.nsys-rep

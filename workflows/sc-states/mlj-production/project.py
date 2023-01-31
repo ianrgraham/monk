@@ -474,8 +474,7 @@ def constant_shear_runs_analysis(job: signac.Project.Job):
         max_strain = total_steps*shear_rate*dt
         process = multiprocessing.Process(target=job_task, args=(job, max_strain, shear_rate, temp))
         process.start()
-        processes.append(process)
-    for process in processes:
+        # processes.append(process)
         process.join()
 
     job.doc["const_shear_anaysis_ran"] = True

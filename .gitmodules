@@ -4,3 +4,9 @@
 [submodule "plugins/neb_plugin"]
 	path = plugins/neb_plugin
 	url = git@github.com:ianrgraham/hoomd-neb.git
+[submodule "pair_plugin"]
+	path = pair_plugin
+	url = git@github.com:ianrgraham/pair_plugin.git
+[submodule "plugins/pair_plugin"]
+	path = plugins/pair_plugin
+	url = git@github.com:ianrgraham/pair_plugin.git

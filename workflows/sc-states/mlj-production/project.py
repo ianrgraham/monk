@@ -440,6 +440,7 @@ def constant_shear_runs_analysis(job: signac.Project.Job):
         box_i = sim.state.box
         box_f = copy.deepcopy(box_i)
         box_f.xy = max_strain + box_i.xy
+        print("box_xy:", box_i.xy, box_f.xy)
         
         total_steps = int(np.round(max_strain/shear_rate/dt))
         shear_update_period = 1 # int(np.round(step_size/shear_rate))
@@ -470,7 +471,7 @@ def constant_shear_runs_analysis(job: signac.Project.Job):
     for run in runs:
         temp = utils.extract_between(run, "temp-", "/traj.gsd")
         shear_rate = float(utils.extract_between(run, "rate-", "/temp-"))
-        print("temp:", temp)
+        print("temp:", temp, "shear_rate:", shear_rate)
         max_strain = total_steps*shear_rate*dt
         process = multiprocessing.Process(target=job_task, args=(job, max_strain, shear_rate, temp))
         process.start()

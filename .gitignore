@@ -48,3 +48,4 @@ experiments/**/workspace
 optix
 
 *.nsys-rep
+.pytest_cache

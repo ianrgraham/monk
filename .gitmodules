@@ -1,12 +1,15 @@
 [submodule "hoomd-blue"]
-	path = hoomd-blue
+	path = extern/hoomd-blue
 	url = https://github.com/ianrgraham/hoomd-blue
 [submodule "plugins/neb_plugin"]
-	path = plugins/neb_plugin
+	path = extern/plugins/neb_plugin
 	url = git@github.com:ianrgraham/hoomd-neb.git
 [submodule "pair_plugin"]
 	path = pair_plugin
 	url = git@github.com:ianrgraham/pair_plugin.git
 [submodule "plugins/pair_plugin"]
-	path = plugins/pair_plugin
+	path = extern/plugins/pair_plugin
 	url = git@github.com:ianrgraham/pair_plugin.git
+[submodule "extern/schmeud"]
+	path = extern/schmeud
+	url = git@github.com:ianrgraham/schmeud.git

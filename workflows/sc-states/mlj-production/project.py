@@ -481,5 +481,76 @@ def constant_shear_runs_analysis(job: signac.Project.Job):
     job.doc["const_shear_anaysis_ran"] = True
 
 
+@Project.operation
+@Project.pre.true('const_shear_analysis_ran')
+@Project.post.true('shear_analysis_sfs_computed')
+def compute_shear_analysis_sfs(job: signac.Project.Job):
+    """Compute stucture functions for sheared systems analysis."""
+
+    print("Job ID:", job.id)
+    # only one run should be used
+    runs = glob.glob(job.fn("short_runs/*/fire_traj.gsd"))
+    for run in runs:
+        print(run)
+        traj = gsd.hoomd.open(run)
+        ref_snap = traj[0]
+        ref_pos = ref_snap.particles.position.copy()
+        box = freud.box.Box.from_box(ref_snap.configuration.box)
+        pos_shape = ref_pos.shape
+        pos = np.zeros((len(traj), *pos_shape), dtype=np.float32)
+        pos[0] = ref_pos
+        for i, snap in enumerate(traj[1:]):
+            next_pos = snap.particles.position.copy()
+            pos[i+1] = box.wrap(next_pos - ref_pos) + pos[i]
+            ref_pos = next_pos
+
+        # compute phop
+        print("Computing phop")
+        phop = _schmeud.dynamics.p_hop(pos, 11)
+
+        df_frame = []
+        df_tag = []
+        df_type = []
+        # df_phop = []
+        df_sf = []
+
+
+        print("Computing structure functions")
+        for frame in range(0, len(phop), 10):
+            # soft_indices = np.array(soft_indices, dtype=np.uint32)
+            # hard_indices = np.array(hard_indices, dtype=np.uint32)
+            snap: gsd.hoomd.Snapshot = traj[int(frame)]
+            num_particles = snap.particles.N
+            # query_indices = np.concatenate([soft_indices, hard_indices])
+            # perm = query_indices.argsort()
+            # sort arrays by query indices
+
+            # get sfs
+            sfs = ml.compute_structure_functions_snap(snap)
+
+            df_frame.append(frame*np.ones(num_particles, dtype=np.uint32))
+            df_tag.append(np.arange(num_particles))
+            df_type.append(snap.particles.typeid)
+            df_phop.append(phop[frame])
+            df_sf.append(sfs)
+
+        df = pd.DataFrame(
+            {
+                "frame": np.concatenate(df_frame),
+                "tag": np.concatenate(df_tag),
+                "type": np.concatenate(df_type),
+                "phop": np.concatenate(df_phop),
+                "sf": list(np.concatenate(df_sf)),
+            }
+        )
+
+        out_file = run.replace("fire_traj.gsd", "sfs.parquet")
+
+        df.to_parquet(out_file)
+
+    job.doc["analysis_sfs_computed"] = True
+
+
+
 if __name__ == "__main__":
     Project.get_project(root=config["root"]).main()

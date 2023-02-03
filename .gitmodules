@@ -13,3 +13,6 @@
 [submodule "extern/schmeud"]
 	path = extern/schmeud
 	url = git@github.com:ianrgraham/schmeud.git
+[submodule "extern/plugins/swap_plugin"]
+	path = extern/plugins/swap_plugin
+	url = git@github.com:ianrgraham/hoomd-swap.git

@@ -16,5 +16,4 @@ set(CMAKE_CXX_STANDARD 20)
 # add subdirectories
 add_subdirectory(pair_plugin)
 # add_subdirectory(forward_flux)
-# add_subdirectory(nlist_plugin)
-# add_subdirectory(neb_plugin)
+add_subdirectory(neb_plugin)

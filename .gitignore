@@ -49,3 +49,7 @@ optix
 
 *.nsys-rep
 .pytest_cache
+
+view
+
+figures

@@ -2,7 +2,98 @@ from typing import Callable, Optional
 import hoomd
 import gsd.hoomd
 import numpy as np
+import tqdm
 
+import freud
+
+class VerifyEquilibrium(hoomd.custom.Action):
+    """Computes dynamics to verify equilibration."""
+
+    def __init__(self, k: Optional[float] = None, max_alpha_time: float = 1e2):
+        self.last_pos = None
+        self.last_image = None
+        self.last_tstep = None
+        if k is None:
+            self.k = 7.14
+        else:
+            self.k = k
+        self.max_alpha_time = max_alpha_time
+        self.alphas = []
+        self.Ds = []
+        self.msds = []
+        self.sisfs = []
+        self.tsteps = []
+    
+    def act(self, timestep):
+        
+        if self.last_pos is None:
+            snap = self._state.get_snapshot()
+            self.last_pos = snap.particles.position
+            self.last_image = snap.particles.image
+            self.first_tstep = timestep
+            self.last_tstep = timestep
+            self.last_msd = 0.0
+            self.alpha_time = 0.0
+            self.measure_D = False
+            self.measured_D = 0.0
+            self.measured_alpha = 0.0
+        else:
+            if self.measure_D:
+                dt = self._state._simulation.operations.integrator.dt
+                if (timestep - self.last_tstep)*dt > self.measured_alpha:
+                    snap = self._state.get_snapshot()
+                    pos = snap.particles.position
+                    image = snap.particles.image
+                    sim_box = self._state.box
+                    if sim_box.is2D:
+                        dim = 2
+                    else:
+                        dim = 3
+                    box = freud.box.Box.from_box(sim_box)
+                    unwrapped_pos = box.unwrap(pos, image - self.last_image)
+                    msd = np.mean(np.sum(np.square(unwrapped_pos - self.last_pos), axis=-1))
+                    self.msds.append(msd)
+                    self.tsteps.append(timestep - self.first_tstep)
+                    D = (msd - self.last_msd) / (timestep - self.last_tstep) / dt / (2 * dim)
+                    self.measured_D = D
+                    self.Ds.append(self.measured_D)
+                    self.alphas.append(self.measured_alpha)
+                    self.measure_D = False
+                    self.alpha_time = 0.0
+                    self.first_tstep = timestep
+                    self.last_pos = snap.particles.position
+                    self.last_image = snap.particles.image
+            else:
+                snap = self._state.get_snapshot()
+                dt = self._state._simulation.operations.integrator.dt
+                pos = snap.particles.position
+                image = snap.particles.image
+                sim_box = self._state.box
+                if sim_box.is2D:
+                    dim = 2
+                else:
+                    dim = 3
+                box = freud.box.Box.from_box(sim_box)
+                unwrapped_pos = box.unwrap(pos, image - self.last_image)
+                msd = np.mean(np.sum(np.square(unwrapped_pos - self.last_pos), axis=-1))
+                self.msds.append(msd)
+                time_diff = timestep - self.first_tstep
+                self.tsteps.append(time_diff)
+                self.last_tstep = timestep
+                self.last_msd = msd
+
+                x = self.k * np.linalg.norm(pos - self.last_pos, axis=-1)
+                sisf = np.mean(np.sin(x)/x)
+                self.sisfs.append(sisf)
+
+                # print(f"{D} {sisf}")
+
+                self.alpha_time = (timestep - self.first_tstep) * dt
+                if sisf < np.exp(-1.0):
+                    self.measure_D = True
+                    self.measured_alpha = self.alpha_time
+                elif self.alpha_time > self.max_alpha_time:
+                    raise RuntimeError("Alpha relaxation time is too long.")
 
 class AsyncTrigger(hoomd.trigger.Trigger):
     """Used by FIRE quench method."""
@@ -37,6 +128,7 @@ class UpdatePosZeroVel(hoomd.custom.Action):
             N = old_snap.particles.N
             old_snap.particles.velocity[:] = np.zeros((N, 3))
             old_snap.particles.position[:] = self.new_snap.particles.position
+            old_snap.configuration.box = self.new_snap.configuration.box
         self._state.set_snapshot(old_snap)
 
 
@@ -246,16 +338,17 @@ def fire_minimize_frames(
 
     sim.operations.add(custom_op)
     sim.operations.writers.append(gsd_writer)
-    for idx, snap in enumerate(input_traj):
-        # print(idx)
+    for idx, snap in tqdm.tqdm(enumerate(input_traj)):
 
         custom_updater.set_snap(snap)
+        # print(snap.configuration.box)
+        # print(snap.particles.position[32439])
         async_trig.activate()
         sim.run(2)
         fire.reset()
-
+        # print("pre-run")
         while not fire.converged:
             sim.run(fire_steps)
-
+        # print("post-run")
         async_write_trig.activate()
         sim.run(2)

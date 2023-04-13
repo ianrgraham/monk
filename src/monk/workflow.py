@@ -27,7 +27,7 @@ def get_config(path: str = None):
     """
     if path is None:
         path = "config.yaml"
-    with open("config.yaml") as file:
+    with open(path) as file:
         config = yaml.load(file, yaml.FullLoader)
 
     assert "root" in config  # assert the a workspace directory is specified

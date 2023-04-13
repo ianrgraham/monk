@@ -7,6 +7,7 @@ import hoomd
 import gsd.hoomd
 import freud
 import numpy as np
+from schmeud.dynamics import thermal
 import pandas as pd
 
 import glob
@@ -206,6 +207,191 @@ def train_softness(*jobs: signac.Project.Job):
         job.doc['softness_trained'] = True
 
 
+# Custom hoomd triggers and actions
+
+class AsyncTrigger(hoomd.trigger.Trigger):
+    """NOT async in the Rust or JavaScript way
+    
+    Trigger by calling the activate() method"""
+
+    def __init__(self):
+        self.async_trig = False
+        hoomd.trigger.Trigger.__init__(self)
+
+    def activate(self):
+        self.async_trig = True
+
+    def compute(self, timestep):
+        out = self.async_trig
+        self.async_trig = False
+        return out
+
+class RestartablePeriodicTrigger(hoomd.trigger.Trigger):
+
+    def __init__(self, period):
+        assert(period >= 1)
+        self.period = period
+        self.state = period - 1
+        hoomd.trigger.Trigger.__init__(self)
+
+    def reset(self):
+        self.state = self.period - 1
+
+    def compute(self, timestep):
+        if self.state >= self.period - 1:
+            # print("Triggering", timestep, self.state, self.period)
+            self.state = 0
+            return True
+        else:
+            self.state += 1
+            return False
+
+
+class UpdatePos(hoomd.custom.Action):
+    """Custom action to handle feeding in a new set of positions through a snapshot"""
+
+    def __init__(self, new_snap=None):
+        self.new_snap = new_snap
+
+    def set_snap(self, new_snap):
+        self.new_snap = new_snap
+
+    def act(self, timestep):
+        # print("Updating positions", timestep)
+        old_snap = self._state.get_snapshot()
+        if old_snap.communicator.rank == 0:
+            N = old_snap.particles.N
+            new_velocity = np.zeros((N,3))
+            for i in range(N):
+                old_snap.particles.velocity[i] = new_velocity[i]
+                old_snap.particles.position[i] = self.new_snap.particles.position[i]
+        self._state.set_snapshot(old_snap)
+
+class PastSnapshotsBuffer(hoomd.custom.Action):
+    """Custom action to hold onto past simulation snapshots"""
+
+    def __init__(self):
+        self.snap_buffer = []
+
+    def clear(self):
+        self.snap_buffer.clear()
+
+    def get_snapshots(self):
+        return self.snap_buffer
+
+    def force_push(self):
+        self.act(None)
+
+    def act(self, timestep):
+        # print("Pushing snapshot", timestep)
+        snap = self._state.get_snapshot()
+        self.snap_buffer.append(snap)
+
+
+
+@Project.operation
+@Project.pre.true('softness_trained')
+@Project.pre(lambda job: job.sp["replica"] == 0)
+@Project.post.true('isconfig_fire_ran')
+def isoconfig_fire_runs(job: signac.Project.Job):
+
+    print("Job ID:", job.id)
+
+    replicas = 100
+    total_steps = 2000
+    runs = sorted(glob.glob(job.fn("short_runs/*/fire_traj.gsd")))[:10]
+
+    print(runs)
+
+    sp = job.sp
+    doc = job.doc
+
+    delta = sp["delta"]
+
+    sim = hoomd.Simulation(hoomd.device.GPU(), seed=doc["seed"])
+    sim.create_state_from_gsd(job.fn("init.gsd"))
+
+    for run in runs:
+
+        output_file = run.replace("fire_traj.gsd", "fire_isconfig.parquet")
+        assert output_file != run
+
+        if os.path.exists(output_file):
+            print("Skipping", output_file)
+            continue
+        else:
+            print(run)
+
+        temp = float(utils.extract_between(run, "temp-", "/"))
+        traj = gsd.hoomd.open(run)
+
+        print(temp)
+
+        integrator = hoomd.md.Integrator(dt=0.005)
+        nlist = hoomd.md.nlist.Tree(0.3)
+        mlj = pair.KA_MLJ(nlist, delta)
+        integrator.forces.append(mlj)
+
+        nvt = hoomd.md.methods.NVT(
+            kT=temp,
+            filter=hoomd.filter.All(),
+            tau=0.5)
+        integrator.methods.append(nvt)
+        sim.operations.integrator = integrator
+
+        sim.state.thermalize_particle_momenta(filter=hoomd.filter.All(), kT=temp)
+
+        all_phops = []
+
+        for jdx in range(len(traj))[::10]:
+            print("jdx:", jdx)
+            snap = traj[jdx]
+
+            custom_updater = UpdatePos(new_snap=snap)
+            snap_buffer = PastSnapshotsBuffer()
+            reset_config_trig = AsyncTrigger()
+            snap_buffer_trig = RestartablePeriodicTrigger(200)
+
+            custom_op = hoomd.update.CustomUpdater(action=custom_updater,
+                                                trigger=reset_config_trig)
+
+            another_op = hoomd.update.CustomUpdater(action=snap_buffer,
+                                                    trigger=snap_buffer_trig)
+            
+            sim.operations.updaters.clear()
+            sim.operations.updaters.append(custom_op)
+            sim.operations.updaters.append(another_op)
+
+
+            for idx in range(replicas):
+                # print("timestep", sim.timestep)
+                reset_config_trig.activate()
+                snap_buffer_trig.reset()
+                sim.run(2)
+                sim.state.thermalize_particle_momenta(hoomd.filter.All(), temp)
+
+                sim.run(total_steps+2)
+
+                # process phop
+                mtraj = snap_buffer.get_snapshots()
+                phop = thermal.calc_phop(mtraj, tr_frames=len(mtraj)-1)
+
+                box = freud.box.Box.from_box(snap.configuration.box)
+
+                prop = np.linalg.norm(box.wrap(mtraj[-1].particles.position - mtraj[0].particles.position), axis=1)
+
+                all_phops.append([np.uint32(jdx), np.arange(len(phop[0]), dtype=np.uint32), np.uint32(idx), phop[0].astype(np.float32), prop.astype(np.float32)]) # trivial unwrapping
+
+                snap_buffer.clear()
+
+        df = pd.DataFrame(all_phops, columns=["frame", "id", "replica", "phop", "prop"]).explode(["id", "phop", "prop"])
+
+        df.to_parquet(output_file)
+
+    doc["isconfig_fire_ran"] = True
+
+
+
 @Project.operation
 @Project.pre.true('softness_trained')
 @Project.post.true('analysis_sfs_computed')
@@ -276,6 +462,78 @@ def compute_analysis_sfs(job: signac.Project.Job):
     job.doc["analysis_sfs_computed"] = True
 
 
+@Project.operation
+@Project.pre.true('analysis_sfs_computed')
+@Project.post.true('struct_descrs_computed')
+def compute_struct_descr(job: signac.Project.Job):
+    """Compute structural descriptors for analysis."""
+
+    print("Job ID:", job.id)
+    # only one run should be used
+    runs = glob.glob(job.fn("short_runs/*/fire_traj.gsd"))
+    for run in runs:
+        print(run)
+        traj = gsd.hoomd.open(run)
+        ref_snap = traj[0]
+        ref_pos = ref_snap.particles.position.copy()
+        box = freud.box.Box.from_box(ref_snap.configuration.box)
+        pos_shape = ref_pos.shape
+        pos = np.zeros((len(traj), *pos_shape), dtype=np.float32)
+        pos[0] = ref_pos
+        for i, snap in enumerate(traj[1:]):
+            next_pos = snap.particles.position.copy()
+            pos[i+1] = box.wrap(next_pos - ref_pos) + pos[i]
+            ref_pos = next_pos
+
+        # compute phop
+        print("Computing phop")
+        phop = _schmeud.dynamics.p_hop(pos, 11)
+
+        df_frame = []
+        df_tag = []
+        df_type = []
+        df_phop = []
+        df_soft = []
+
+
+        print("Computing structure functions")
+        for frame in range(0, len(phop), 2):
+            # soft_indices = np.array(soft_indices, dtype=np.uint32)
+            # hard_indices = np.array(hard_indices, dtype=np.uint32)
+            snap: gsd.hoomd.Snapshot = traj[int(frame)]
+            num_particles = snap.particles.N
+            a_type = snap.particles.typeid == 0
+            # query_indices = np.concatenate([soft_indices, hard_indices])
+            # perm = query_indices.argsort()
+            # sort arrays by query indices
+
+            # get sfs
+            sfs = ml.compute_structure_functions_snap(snap)[a_type]
+
+            df_frame.append(frame*np.ones(num_particles, dtype=np.uint32))
+            df_tag.append(np.arange(num_particles)[a_type])
+            df_type.append(snap.particles.typeid)
+            df_phop.append(phop[frame])
+            # df_sf.append(sfs)
+
+        df = pd.DataFrame(
+            {
+                "frame": np.concatenate(df_frame),
+                "tag": np.concatenate(df_tag),
+                "type": np.concatenate(df_type),
+                "phop": np.concatenate(df_phop),
+                "soft": np.concatenate(df_soft),
+            }
+        )
+
+        out_file = run.replace("fire_traj.gsd", "sig_struct_descrs.parquet")
+        assert out_file != run
+
+        df.to_parquet(out_file)
+
+    job.doc["struct_descrs_computed"] = True
+
+
 class xyLogger:
 
     def __init__(self, sim: hoomd.Simulation):
@@ -302,7 +560,8 @@ def constant_shear_runs(job: signac.Project.Job):
 
     dt = project.doc["dt"]
 
-    shear_rates = [1e-3, 1e-4, 1e-5]
+    # shear_rates = [1e-3, 1e-4, 1e-5]
+    shear_rates = [2e-3, 5e-4, 2e-4]
     # instead use const number of time steps
     # max_strain = 0.40
     # step_size = 1e-1
@@ -392,7 +651,7 @@ def constant_shear_runs(job: signac.Project.Job):
 @Project.operation
 # @Project.pre(lambda job: not job.doc.get('_CRYSTAL'))
 @Project.pre(lambda job: job.sp["delta"] == 0.0 and job.doc.get("const_shear_ran"))
-@Project.post.true("const_shear_analysis_ran")
+@Project.post.true("const_shear_anaysis_ran")  # FIX ME: typo "analysis"
 def constant_shear_runs_analysis(job: signac.Project.Job):
     """Run constant shear simulations."""
     sp = job.sp
@@ -423,6 +682,10 @@ def constant_shear_runs_analysis(job: signac.Project.Job):
 
     def job_task(job, max_strain, shear_rate, temp):
         output_dir = job.fn(f"shear_runs/rate-{shear_rate}/temp-{temp}")
+        tmp_file = output_dir + "/_analysis_traj.gsd"
+        traj = output_dir + "/analysis_traj.gsd"
+        if os.path.exists(traj):
+            return
         sim = setup_sim(run, float(temp))
 
         sim.always_compute_pressure = True
@@ -450,8 +713,6 @@ def constant_shear_runs_analysis(job: signac.Project.Job):
         sim.operations.updaters.append(updater)
 
         write_trigger = hoomd.trigger.Periodic(1_000, phase=sim.timestep)
-        tmp_file = output_dir + "/_analysis_traj.gsd"
-        traj = output_dir + "/analysis_traj.gsd"
         writer = hoomd.write.GSD(filename=tmp_file, trigger=write_trigger, mode="wb", log=log)
         sim.operations.writers.append(writer)
 
@@ -482,27 +743,85 @@ def constant_shear_runs_analysis(job: signac.Project.Job):
 
 
 @Project.operation
-@Project.pre.true('const_shear_analysis_ran')
+@Project.pre.true('const_shear_anaysis_ran')
+@Project.post.true('shear_fire_applied')
+def fire_minimize_shear_analysis_runs(job: signac.Project.Job):
+    """Apply FIRE minimization to the shear runs ready for analysis."""
+    sp = job.sp
+    doc = job.doc
+
+    print(sp, doc)
+
+    sim = hoomd.Simulation(hoomd.device.GPU(), seed=doc["seed"])
+    sim.create_state_from_gsd(job.fn("init.gsd"))
+
+    fire = hoomd.md.minimize.FIRE(1e-2, 1e-3, 1.0, 1e-3)
+
+    nlist = hoomd.md.nlist.Tree(buffer=0.3)
+    mlj = pair.KA_ModLJ(nlist, sp["delta"])
+    nve = hoomd.md.methods.NVE(filter=hoomd.filter.All())
+    fire.forces = [mlj]
+    fire.methods = [nve]
+    sim.operations.integrator = fire
+
+    # setup details for sims
+    runs = glob.glob(job.fn("shear_runs/*/*/analysis_traj.gsd"))
+    print(len(runs))
+    for run in runs:
+        print(run)
+        traj = gsd.hoomd.open(run)
+        fire_traj = run.replace("analysis_traj.gsd", "fire_traj.gsd")
+
+        assert fire_traj != traj
+
+        if os.path.isfile(fire_traj):
+            tmp_traj = gsd.hoomd.open(fire_traj)
+            len_traj = len(tmp_traj)
+            del tmp_traj
+            if len_traj == len(traj):
+                continue
+
+        methods.fire_minimize_frames(
+            sim,
+            traj,
+            fire_traj
+        )
+
+    job.doc["shear_fire_applied"] = True
+
+
+@Project.operation
+@Project.pre.true('shear_fire_applied')
 @Project.post.true('shear_analysis_sfs_computed')
 def compute_shear_analysis_sfs(job: signac.Project.Job):
     """Compute stucture functions for sheared systems analysis."""
 
     print("Job ID:", job.id)
     # only one run should be used
-    runs = glob.glob(job.fn("short_runs/*/fire_traj.gsd"))
+    runs = glob.glob(job.fn("shear_runs/*/*/fire_traj.gsd"))
     for run in runs:
         print(run)
+        out_file = run.replace("fire_traj.gsd", "sfs.parquet")
+        assert out_file != run
+        if os.path.isfile(out_file):
+            continue
         traj = gsd.hoomd.open(run)
-        ref_snap = traj[0]
-        ref_pos = ref_snap.particles.position.copy()
-        box = freud.box.Box.from_box(ref_snap.configuration.box)
-        pos_shape = ref_pos.shape
-        pos = np.zeros((len(traj), *pos_shape), dtype=np.float32)
-        pos[0] = ref_pos
-        for i, snap in enumerate(traj[1:]):
-            next_pos = snap.particles.position.copy()
-            pos[i+1] = box.wrap(next_pos - ref_pos) + pos[i]
-            ref_pos = next_pos
+        pos = []
+        box0 = freud.box.Box.from_box(traj[0].configuration.box)
+        pos0 = box0.make_fractional(traj[0].particles.position)
+        unit_box = freud.box.Box.cube(1)
+        prev = pos0
+        image = np.zeros((len(traj[0].particles.position), 3), dtype=np.int32)
+        for frame in traj:
+            box = freud.box.Box.from_box(frame.configuration.box)
+            new = box.make_fractional(frame.particles.position)
+            image -= unit_box.get_images(new - prev)
+            x = box.make_absolute(new)
+            x = box.unwrap(x, image)
+            x -= box.make_absolute(pos0)
+            pos.append(x)
+            prev = new
+        pos = np.array(pos)
 
         # compute phop
         print("Computing phop")
@@ -511,7 +830,7 @@ def compute_shear_analysis_sfs(job: signac.Project.Job):
         df_frame = []
         df_tag = []
         df_type = []
-        # df_phop = []
+        df_phop = []
         df_sf = []
 
 
@@ -544,13 +863,320 @@ def compute_shear_analysis_sfs(job: signac.Project.Job):
             }
         )
 
+        df.to_parquet(out_file)
+
+    job.doc["shear_analysis_sfs_computed"] = True
+
+# stress simulations
+@Project.operation
+@Project.pre(lambda job: job.sp["delta"] == 0.0 and job.sp["replica"] == 0)
+@Project.post.true('const_stress_ran')
+def constant_stress_runs(job: signac.Project.Job):
+    """Run constant stress simulations."""
+    sp = job.sp
+    doc = job.doc
+
+    print(job, sp, doc)
+
+    project = job._project
+
+    dt = project.doc["dt"]
+
+    # stresses = [0.02, 0.05, 0.1]
+
+    stresses = [0.2, 0.3, 0.4]
+
+    total_steps = 1_000_000
+
+    def setup_sim(gsd_file, temp, stress):
+        sim = hoomd.Simulation(hoomd.device.GPU(), seed=doc["seed"])
+        sim.create_state_from_gsd(gsd_file)
+
+        integrator = hoomd.md.Integrator(dt)
+
+        nlist = hoomd.md.nlist.Tree(buffer=0.3)
+        mlj = pair.KA_ModLJ(nlist, sp["delta"])
+        nve = hoomd.md.methods.NPT(hoomd.filter.All(), temp, 0.1, [0, 0, 0, 0, 0, stress], 0.1, couple="none", box_dof=[False, False, False, True, False, False])
+        integrator.forces = [mlj]
+        integrator.methods = [nve]
+        sim.operations.integrator = integrator
+
+        return sim
+
+    def job_task(job, run, stress, temp):
+        output_dir = job.fn(f"stress_runs/stress-{stress}/temp-{temp}")
+        if os.path.exists(output_dir + "/traj.gsd"):
+            return
+        os.makedirs(output_dir, exist_ok=True)
+
+        sim = setup_sim(run, float(temp), stress)
+
+        sim.always_compute_pressure = True
+
+        log = hoomd.logging.Logger()
+
+        analyzer = hoomd.md.compute.ThermodynamicQuantities(filter=hoomd.filter.All())
+        xy_logger = xyLogger(sim)
+        sim.operations.computes.append(analyzer)
+
+        log.add(analyzer, quantities=["pressure", "pressure_tensor", "kinetic_temperature"])
+        log.add(sim, quantities=["timestep"])
+        log[('box', 'xy')] = (xy_logger, 'value', 'scalar')
+
+        write_trigger = hoomd.trigger.Periodic(10_000, phase=sim.timestep)
+        tmp_file = output_dir + "/_traj.gsd"
+        traj = output_dir + "/traj.gsd"
+        writer = hoomd.write.GSD(filename=tmp_file, trigger=write_trigger, mode="wb", log=log)
+        sim.operations.writers.append(writer)
+
+        # print(total_steps)
+
+        sim.run(total_steps)
+
+        del sim, log, analyzer, xy_logger, writer, write_trigger
+
+        gc.collect()
+
+        shutil.move(tmp_file, traj)
+    
+    runs = sorted(glob.glob(job.fn("runs/temp-*/traj.gsd")))
+    # print(runs)
+    for run in runs[:10:2]:
+        temp = utils.extract_between(run, "temp-", "/traj.gsd")
+        print("temp:", temp)
+        # processes = []
+        for stress in stresses:
+            process = multiprocessing.Process(target=job_task, args=(job, run, stress, temp))
+            process.start()
+            process.join()
+        #     processes.append(process)
+        # for process in processes:
+        #     process.join()
+
+    job.doc["const_stress_ran"] = True
+
+@Project.operation
+@Project.pre.true("const_stress_ran")
+@Project.post.true("const_stress_analysis_ran")
+def constant_stress_runs_analysis(job: signac.Project.Job):
+    """Run constant stress simulations."""
+    sp = job.sp
+    doc = job.doc
+
+    print(job, sp, doc)
+
+    project = job._project
+
+    dt = project.doc["dt"]
+
+    total_steps = 100_000
+
+    def setup_sim(gsd_file, temp):
+        sim = hoomd.Simulation(hoomd.device.GPU(), seed=doc["seed"])
+        sim.create_state_from_gsd(gsd_file)
+
+        integrator = hoomd.md.Integrator(dt)
+
+        nlist = hoomd.md.nlist.Tree(buffer=0.3)
+        mlj = pair.KA_ModLJ(nlist, sp["delta"])
+        nve = hoomd.md.methods.NPT(hoomd.filter.All(), temp, 0.1, [0, 0, 0, 0, 0, stress], 0.1, couple="none", box_dof=[False, False, False, True, False, False])
+        integrator.forces = [mlj]
+        integrator.methods = [nve]
+        sim.operations.integrator = integrator
+
+        sim.run(0)
+
+        return sim
+
+    def job_task(job, run, stress, temp):
+        output_dir = job.fn(f"stress_runs/stress-{stress}/temp-{temp}")
+        tmp_file = output_dir + "/_analysis_traj.gsd"
+        traj = output_dir + "/analysis_traj.gsd"
+        if os.path.exists(traj): # skip if already done
+            return
+        sim = setup_sim(run, float(temp))
+
+        sim.always_compute_pressure = True
+
+        log = hoomd.logging.Logger()
+
+        analyzer = hoomd.md.compute.ThermodynamicQuantities(filter=hoomd.filter.All())
+        xy_logger = xyLogger(sim)
+        sim.operations.computes.append(analyzer)
+
+        log.add(analyzer, quantities=["pressure", "pressure_tensor", "kinetic_temperature"])
+        log.add(sim, quantities=["timestep"])
+        log[('box', 'xy')] = (xy_logger, 'value', 'scalar')
+
+        # box_f = sim.state.box
+        # while box_f.xy < -0.5 and box_f.xy > -1.0:
+        #     print("adjust box")
+        #     box_i = sim.state.box
+        #     box_f = copy.deepcopy(box_i)
+        #     box_f.xy = box_i.xy + 1.0
+        #     new_xy = box_f.xy
+        #     print("box_xy:", box_i.xy, box_f.xy)
+        #     print(box_f)
+        #     hoomd.update.BoxResize.update(sim.state, box_f, hoomd.filter.All())
+
+        #     print(sim.state.box.xy, "==", new_xy)
+        #     assert sim.state.box.xy == new_xy
+        # return
+
+        write_trigger = hoomd.trigger.Periodic(1_000, phase=sim.timestep)
+        
+        # if os.path.exists(traj):
+        #     return
+        writer = hoomd.write.GSD(filename=tmp_file, trigger=write_trigger, mode="wb", log=log)
+        sim.operations.writers.append(writer)
+
+        # print(total_steps)
+
+        sim.run(total_steps)
+
+        del sim, log, analyzer, xy_logger, writer, write_trigger
+
+        gc.collect()
+
+        shutil.move(tmp_file, traj)
+
+    runs = sorted(glob.glob(job.fn("stress_runs/stress-*/temp-*/traj.gsd")))
+    # print(runs)
+    for run in runs:
+        temp = utils.extract_between(run, "temp-", "/traj.gsd")
+        stress = float(utils.extract_between(run, "stress-", "/temp-"))
+        print("temp:", temp, "stress:", stress)
+        process = multiprocessing.Process(target=job_task, args=(job, run, stress, temp))
+        process.start()
+        process.join()
+
+    job.doc["const_stress_analysis_ran"] = True
+
+
+@Project.operation
+@Project.pre.true('const_stress_analysis_ran')
+@Project.post.true('stress_fire_applied')
+def fire_minimize_stress_analysis_runs(job: signac.Project.Job):
+    """Apply FIRE minimization to the stress runs ready for analysis."""
+    sp = job.sp
+    doc = job.doc
+
+    print(sp, doc)
+
+    sim = hoomd.Simulation(hoomd.device.GPU(), seed=doc["seed"])
+    sim.create_state_from_gsd(job.fn("init.gsd"))
+
+    fire = hoomd.md.minimize.FIRE(1e-2, 1e-3, 1.0, 1e-3)
+
+    nlist = hoomd.md.nlist.Tree(buffer=0.3)
+    mlj = pair.KA_ModLJ(nlist, sp["delta"])
+    nve = hoomd.md.methods.NVE(filter=hoomd.filter.All())
+    fire.forces = [mlj]
+    fire.methods = [nve]
+    sim.operations.integrator = fire
+
+    # setup details for sims
+    runs = glob.glob(job.fn("stress_runs/*/*/analysis_traj.gsd"))
+    print(len(runs))
+    for run in runs:
+        print(run)
+        traj = gsd.hoomd.open(run)
+        fire_traj = run.replace("analysis_traj.gsd", "fire_traj.gsd")
+
+        assert fire_traj != traj
+
+        if os.path.isfile(fire_traj):
+            tmp_traj = gsd.hoomd.open(fire_traj)
+            len_traj = len(tmp_traj)
+            del tmp_traj
+            if len_traj == len(traj):
+                continue
+
+        methods.fire_minimize_frames(
+            sim,
+            traj,
+            fire_traj
+        )
+
+    job.doc["stress_fire_applied"] = True
+
+
+@Project.operation
+@Project.pre.true('stress_fire_applied')
+@Project.post.true('stress_analysis_sfs_computed')
+def compute_stress_analysis_sfs(job: signac.Project.Job):
+    """Compute stucture functions for stressed systems analysis."""
+
+    print("Job ID:", job.id)
+    # only one run should be used
+    runs = glob.glob(job.fn("stress_runs/*/*/fire_traj.gsd"))
+    for run in runs:
+        print(run)
         out_file = run.replace("fire_traj.gsd", "sfs.parquet")
+        assert out_file != run
+        if os.path.isfile(out_file):
+            continue
+        traj = gsd.hoomd.open(run)
+        pos = []
+        box0 = freud.box.Box.from_box(traj[0].configuration.box)
+        pos0 = box0.make_fractional(traj[0].particles.position)
+        unit_box = freud.box.Box.cube(1)
+        prev = pos0
+        image = np.zeros((len(traj[0].particles.position), 3), dtype=np.int32)
+        for frame in traj:
+            box = freud.box.Box.from_box(frame.configuration.box)
+            new = box.make_fractional(frame.particles.position)
+            image -= unit_box.get_images(new - prev)
+            x = box.make_absolute(new)
+            x = box.unwrap(x, image)
+            x -= box.make_absolute(pos0)
+            pos.append(x)
+            prev = new
+        pos = np.array(pos)
+
+        # compute phop
+        print("Computing phop")
+        phop = _schmeud.dynamics.p_hop(pos, 11)
+
+        df_frame = []
+        df_tag = []
+        df_type = []
+        df_phop = []
+        df_sf = []
+
+
+        print("Computing structure functions")
+        for frame in range(0, len(phop), 10):
+            # soft_indices = np.array(soft_indices, dtype=np.uint32)
+            # hard_indices = np.array(hard_indices, dtype=np.uint32)
+            snap: gsd.hoomd.Snapshot = traj[int(frame)]
+            num_particles = snap.particles.N
+            # query_indices = np.concatenate([soft_indices, hard_indices])
+            # perm = query_indices.argsort()
+            # sort arrays by query indices
+
+            # get sfs
+            sfs = ml.compute_structure_functions_snap(snap)
+
+            df_frame.append(frame*np.ones(num_particles, dtype=np.uint32))
+            df_tag.append(np.arange(num_particles))
+            df_type.append(snap.particles.typeid)
+            df_phop.append(phop[frame])
+            df_sf.append(sfs)
+
+        df = pd.DataFrame(
+            {
+                "frame": np.concatenate(df_frame),
+                "tag": np.concatenate(df_tag),
+                "type": np.concatenate(df_type),
+                "phop": np.concatenate(df_phop),
+                "sf": list(np.concatenate(df_sf)),
+            }
+        )
 
         df.to_parquet(out_file)
 
-    job.doc["analysis_sfs_computed"] = True
-
-
+    job.doc["stress_analysis_sfs_computed"] = True
 
 if __name__ == "__main__":
     Project.get_project(root=config["root"]).main()

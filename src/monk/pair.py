@@ -30,7 +30,7 @@ def KA_LJ(nlist: hoomd.md.nlist.NeighborList) -> hoomd.md.pair.Pair:
 
 
 def Wahn(nlist: hoomd.md.nlist.NeighborList) -> hoomd.md.pair.Pair:
-    '''Kob-Anderson Lennard-Jones potential
+    '''Lennard-Jones potential with Wahn interaction parameters
     '''
     r_cutoff = 2.5
     eps_AA = 1.0

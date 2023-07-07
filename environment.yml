@@ -19,5 +19,6 @@ dependencies:
   - pyyaml=6.0
   - click=8.0
   - pyarrow=8.0
+  - napari=0.4
   # - pip:
   #     - schmeud=0.8

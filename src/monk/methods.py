@@ -311,6 +311,129 @@ class ConstantShear(hoomd.custom.Action):
         self._state.set_box(box)
 
 
+class KeepBoxTiltsSmall(hoomd.custom.Action):
+    """Apply a correction to keep Box tilt factors with the range [-0.5, 0.5)."""
+
+    def __init__(self):
+        super().__init__()
+
+    def act(self, timestep):
+        box = self._state.box
+        change = False
+        
+        if box.xy >= 0.5:
+            box.xy -= 1.0
+            change = True
+        elif box.xy < -0.5:
+            box.xy += 1.0
+            change = True
+        if box.yz >= 0.5:
+            box.yz -= 1.0
+            change = True
+        elif box.yz < -0.5:
+            box.yz += 1.0
+            change = True
+        if box.xz >= 0.5:
+            box.xz -= 1.0
+            change = True
+        elif box.xz < -0.5:
+            box.xz += 1.0
+            change = True
+
+        if change:
+            self._state.set_box(box)
+
+class SinusoidalShear(hoomd.custom.Action):
+    """Apply a sinusoidal shear protocol."""
+
+    def __init__(self, gamma: float, timestep: int, period: int, pair: str = "xy"):
+        super().__init__()
+        self._gamma = gamma
+        self._start = timestep
+        self._period = period
+        match pair:
+            case "xy":
+                self._pair_mode = 0
+            case "yz":
+                self._pair_mode = 1
+            case "xz":
+                self._pair_mode = 2
+
+    def act(self, timestep):
+        box = self._state.box
+        time_diff = (timestep - self._start) % self._period
+
+        shear = np.sin(2 * np.pi * time_diff / self._period) * self._gamma
+
+        match self._pair_mode:
+            case 0:  # xy
+                box.xy = shear
+            case 1:  # yz
+                box.yz = shear
+            case 2:  # xz
+                box.xz = shear
+            
+        self._state.set_box(box)
+
+class SimpleViscousForce(hoomd.md.force.Custom):
+    """A simple viscous force that acts on all particles."""
+
+    def __init__(self, gamma: float):
+        super().__init__(aniso=False)
+        self.gamma = gamma
+
+    def set_forces(self, timestep):
+        with self._state.cpu_local_snapshot as snap:
+            with self.cpu_local_force_arrays as arrays:
+                arrays.force[:] = -snap.particles.velocity * self.gamma
+            
+
+class Oscillate(hoomd.variant.Variant):
+    def __init__(self, amplitude: float, t_start: int, period: int, phase: float = 0):
+        hoomd.variant.Variant.__init__(self)
+        self._amp = amplitude / 2
+        self._actual_amp = amplitude
+        self._t_start = t_start
+        self._period = period
+        self._phase = phase
+
+    def __call__(self, timestep):
+        time = (timestep - self._t_start) % self._period
+        val = (np.sin(2 * np.pi * time / self._period + self._phase) + 1) * self._amp
+        # print(val)
+        return val
+
+    def _min(self):
+        return 0
+
+    def _max(self):
+        return self._actual_amp
+    
+class OscillateCounter(hoomd.variant.Variant):
+    def __init__(self, amplitude: float, period: int, phase: float = 0):
+        hoomd.variant.Variant.__init__(self)
+        self._amp = amplitude / 2
+        self._actual_amp = amplitude
+        self._t_start = 0
+        self._count = 0
+        self._period = period
+        self._phase = phase
+
+    def __call__(self, timestep):
+        time = (self._count - self._t_start) % self._period
+        val = (np.sin(2 * np.pi * time / self._period + self._phase) + 1) * self._amp
+        # print(val)
+        return val
+    
+    def inc(self):
+        self._count += 1
+
+    def _min(self):
+        return 0
+
+    def _max(self):
+        return self._actual_amp
+
 def fire_minimize_frames(
         sim: hoomd.Simulation,
         input_traj: gsd.hoomd.HOOMDTrajectory,

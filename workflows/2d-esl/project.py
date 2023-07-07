@@ -77,7 +77,7 @@ def _setup_fire_sim(job: signac.Project.Job, sim: hoomd.Simulation, fire_kwargs=
     else:
         raise ValueError("The 'potential' must be a string or list")
     
-    default_fire_kwargs = {"dt": 1e-2, "force_tol": 1e-3, "angmom_tol": 1.0, "energy_tol": 1e-3}
+    default_fire_kwargs = {"dt": 1e-2, "force_tol": 1e-2, "angmom_tol": 1.0, "energy_tol": 1e-5}
     
     if fire_kwargs is None:
         fire_kwargs = default_fire_kwargs
@@ -237,7 +237,7 @@ def sc_fine_quench(job: signac.Project.Job):
     step_unit = proj_doc["step_unit"]
     equil_time = proj_doc["equil_time"]
     max_alpha_time = 4_000
-    run_steps = step_unit  # this will be adjusted as the simulations progress
+    run_steps = step_unit // 10  # this will be adjusted as the simulations progress
     alpha_iters = 10
 
     marker = pathlib.Path(job.fn("fine/done"))
@@ -281,7 +281,7 @@ def sc_fine_quench(job: signac.Project.Job):
                 sim.create_state_from_gsd(filename=final_traj)
                 nvt = _setup_nvt_sim(job, sim, temp=temp)
                 with job.data:
-                    run_steps = rounddown(np.mean(job.data[f"fine/temp_{temp:.3f}/alphas".replace(".", "_")][-5:])) * step_unit
+                    run_steps = rounddown(np.mean(job.data[f"fine/temp_{temp:.3f}/alphas".replace(".", "_")][-5:])) * (step_unit // 10)
                 temp -= delta_temp
                 continue
             else:
@@ -289,15 +289,15 @@ def sc_fine_quench(job: signac.Project.Job):
                 nvt.kT = temp
             print("Temperature set to ", nvt.kT(sim.timestep))
 
+            sim.run(equil_time * step_unit)
+
             action = methods.VerifyEquilibrium(max_alpha_time=max_alpha_time)
             custom_action = hoomd.update.CustomUpdater(
-                hoomd.trigger.Periodic(run_steps), action)
+                hoomd.trigger.Periodic(run_steps, phase=sim.timestep), action)
             sim.operations.updaters.clear()
             sim.operations.updaters.append(custom_action)
 
             tmp_traj = job.fn(f"fine/_equil_temp-{temp:.3f}.gsd")
-
-            sim.run(equil_time * step_unit)
 
             # hoomd.write.GSD.write(sim.state, final_traj)
             gsd_writer = hoomd.write.GSD(filename=tmp_traj,
@@ -307,7 +307,9 @@ def sc_fine_quench(job: signac.Project.Job):
             sim.operations.writers.clear()
             sim.operations.writers.append(gsd_writer)
 
+            # print(len(action.alphas))
             while len(action.alphas) < alpha_iters:
+                # print(len(action.alphas))
                 sim.run(run_steps)
             print("Alpha relaxation times:", action.alphas[-5:])
             print("Diffusion coefficients:", action.Ds[-5:])
@@ -315,7 +317,7 @@ def sc_fine_quench(job: signac.Project.Job):
             shutil.move(tmp_traj, final_traj)
 
             with job.data:
-                run_steps = rounddown(np.mean(job.data[f"fine/temp_{temp:.3f}/alphas".replace(".", "_")][-5:])) * step_unit
+                run_steps = rounddown(np.mean(job.data[f"fine/temp_{temp:.3f}/alphas".replace(".", "_")][-5:])) * (step_unit // 10)
             temp -= delta_temp
 
     except RuntimeError as e:

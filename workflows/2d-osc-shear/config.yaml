@@ -1,0 +1,2 @@
+root: ${MONK_DATA_DIR}/monk/2d-osc-shear
+origin: ${MONK_DATA_DIR}/monk/2d-esl

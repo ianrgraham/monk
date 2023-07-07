@@ -239,6 +239,9 @@ def approx_euclidean_snapshot(
         ratios), "Lens of 'particle_types' and 'ratios' must match"
     if diams is not None:
         assert len_types == len(diams)
+    
+    if diams is None:
+        diams = [1.0] * len_types
 
     n = int(np.ceil(np.power(N, 1 / dim)))
     x = np.linspace(-L / 2, L / 2, n, endpoint=False)

@@ -1,2 +1,6 @@
 [workspace]
 members = ["extern/schmeud"]
+resolver = "2"
+
+[profile.release]
+debug = 1

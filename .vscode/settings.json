@@ -1,8 +1,10 @@
 {
-
     "python.linting.enabled": true,
     "C_Cpp.default.cppStandard": "c++20",
     "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+    "rewrap.autoWrap.enabled": true,
+    "rewrap.wrappingColumn": 79,
     "jupyter.jupyterServerType": "local",
-    "C_Cpp.autoAddFileAssociations": false
+    "C_Cpp.autoAddFileAssociations": false,
+    "C_Cpp.errorSquiggles": "disabled"
 }

@@ -20,7 +20,9 @@
                 "/usr/include/python3.10",
                 "/usr/lib/x86_64-linux-gnu/openmpi/include"
             ],
-            "defines": ["ENABLE_MPI"],
+            "defines": [
+                "ENABLE_MPI"
+            ],
             "compilerPath": "/usr/bin/g++-11",
             "cStandard": "c17",
             "cppStandard": "c++17",
@@ -35,7 +37,12 @@
                 "/usr/lib/x86_64-linux-gnu/openmpi/include",
                 "/usr/lib/llvm-14/include"
             ],
-            "defines": ["ENABLE_MPI", "ENABLE_TBB", "ENABLE_LLVM", "HOOMD_LLVM_INSTALL_PREFIX=\"somepath\""],
+            "defines": [
+                "ENABLE_MPI",
+                "ENABLE_TBB",
+                "ENABLE_LLVM",
+                "HOOMD_LLVM_INSTALL_PREFIX=\"somepath\""
+            ],
             "compilerPath": "/usr/bin/g++-11",
             "cStandard": "c17",
             "cppStandard": "c++20",
@@ -50,7 +57,15 @@
                 "/usr/lib/x86_64-linux-gnu/openmpi/include",
                 "/usr/lib/llvm-14/include"
             ],
-            "defines": ["ENABLE_MPI", "ENABLE_TBB", "ENABLE_LLVM", "ENABLE_HIP", "__HIP_PLATFORM_NVCC__", "HOOMD_LLVM_INSTALL_PREFIX=\"somepath\"", "CUDA_ARCH=75"],
+            "defines": [
+                "ENABLE_MPI",
+                "ENABLE_TBB",
+                "ENABLE_LLVM",
+                "ENABLE_HIP",
+                "__HIP_PLATFORM_NVCC__",
+                "HOOMD_LLVM_INSTALL_PREFIX=\"somepath\"",
+                "CUDA_ARCH=75"
+            ],
             "compilerPath": "/usr/bin/g++-11",
             "cStandard": "c17",
             "cppStandard": "c++20",

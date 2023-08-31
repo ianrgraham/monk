@@ -20,6 +20,9 @@ import pathlib
 import math
 import itertools
 
+from dataclasses import dataclass
+from collections import defaultdict
+
 from monk import workflow, methods, pair, utils, prep
 import schmeud._schmeud as _schmeud
 from schmeud import ml
@@ -262,7 +265,79 @@ def shear_experiment(job: signac.Project.Job):
             
 
     doc["experiment_completed"] = True
+
+
+@dataclass(frozen=True, eq=True)
+class Statepoint:
+    max_shear: float
+    period: float
+    temp: float
+    prep: str
+
+
+@Project.operation
+@Project.pre.true("experiment_completed")
+@Project.post.true("t1_counts_completed")
+def t1_counts(job: signac.Project.Job):
+    doc = job.doc
+    experiments = sorted(glob.glob(job.fn("experiments/*/*/traj_*.gsd")))
+    # prep = job.sp["prep"]
+
+    for exper in experiments:
+        max_shear = utils.extract_between(exper, "max-shear-", "/")
+        period = utils.extract_between(exper, "period-", ".gsd")
+        temp = utils.extract_between(exper, "temp-", "/")
+        output_file = job.fn(f"experiments/max-shear-{max_shear}/temp-{temp}/t1-counts_period-{period}.parquet")
+        if os.path.exists(output_file):
+            continue
+        # sp = Statepoint(max_shear=float(max_shear), period=float(period), temp=float(temp), prep=prep)
         
+        if float(period) != 1000.0:
+            continue
+
+        traj = gsd.hoomd.open(exper)
+
+        print(max_shear, period, temp)
+
+        rev_count = []
+        irr_count = []
+        voro = freud.locality.Voronoi()
+        for i in range(1, 20):
+
+            rearranged = set()
+
+            snap_0 = traj[-1 + i*40] # initial state
+            snap_1 = traj[9 + i*40] # peak
+            snap_2 = traj[19 + i*40] # back to zero
+            snap_3 = traj[29 + i*40] # min peak
+            snap_4 = traj[-1 + (i+1)*40] # full cycle complete
+
+            box_0 = snap_0.configuration.box[:]
+            box_1 = snap_1.configuration.box[:]
+            box_2 = snap_2.configuration.box[:]
+            box_3 = snap_3.configuration.box[:]
+            box_4 = snap_4.configuration.box[:]
+
+            voro.compute((box_0, snap_0.particles.position))
+            nlist = voro.nlist
+            neighbors = set([frozenset(set([i, j])) for i, j in zip(nlist.query_point_indices, nlist.point_indices)])
+
+            next_to_process = zip([box_1, box_2, box_3, box_4], [snap_1, snap_2, snap_3, snap_4])
+
+            for box, snap in next_to_process:
+                voro.compute((box, snap.particles.position))
+                nlist = voro.nlist
+                neighbors_ = set([frozenset(set([i, j])) for i, j in zip(nlist.query_point_indices, nlist.point_indices)])
+                rearranged |= neighbors - neighbors_
+            rev = rearranged & neighbors_
+            irr = rearranged - rev
+            rev_count.append(len(rev))
+            irr_count.append(len(irr))
+            # break
+        dataset = pd.DataFrame({"rev": rev_count, "irr": irr_count})
+        dataset.to_parquet(output_file)
+
+    doc["t1_counts_completed"] = True
 
 if __name__ == "__main__":
     Project.get_project(root=config["root"]).main()

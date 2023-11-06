@@ -475,3 +475,7 @@ def fire_minimize_frames(
         # print("post-run")
         async_write_trig.activate()
         sim.run(2)
+
+    sim.operations.remove(custom_op)
+    sim.operations.writers.remove(gsd_writer)
+    del custom_op, gsd_writer, async_trig, async_write_trig, custom_updater

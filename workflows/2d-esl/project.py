@@ -77,7 +77,7 @@ def _setup_fire_sim(job: signac.Project.Job, sim: hoomd.Simulation, fire_kwargs=
     else:
         raise ValueError("The 'potential' must be a string or list")
     
-    default_fire_kwargs = {"dt": 1e-2, "force_tol": 1e-2, "angmom_tol": 1.0, "energy_tol": 1e-5}
+    default_fire_kwargs = {"dt": 1e-2, "force_tol": 1e-1, "angmom_tol": 1.0, "energy_tol": 1e-5}
     
     if fire_kwargs is None:
         fire_kwargs = default_fire_kwargs
@@ -393,17 +393,27 @@ def secondary_equil(job: signac.Project.Job):
     proj_doc = project.doc
 
     step_unit = proj_doc["step_unit"]
-    run_steps = 100 * step_unit
+    run_steps = 20 * step_unit
+
+    # dir = job.fn("fine-equil")
+    # if os.path.exists(dir):
+    #     shutil.rmtree(dir)
+
+    # return
 
     os.makedirs(job.fn("fine-equil"), exist_ok=True)
 
     # only analysis the last four runs
-    quench_runs = sorted(glob.glob(job.fn("quench/equil_temp-*.gsd")))[:10]
+    quench_runs = sorted(glob.glob(job.fn("fine/equil_temp-*.gsd")))
     for run in quench_runs:
         temp = float(utils.extract_between(run, "temp-", ".gsd"))
-        new_traj = pathlib.Path(run.replace("quench", "fine-equil"))
+        new_traj = pathlib.Path(run.replace("fine", "fine-equil"))
         if new_traj.exists():
-            print(f"Trajectory found for temp {temp}, skipping")
+            # tmp_traj = gsd.hoomd.open(new_traj)
+            # len_traj = len(tmp_traj)
+            print(f"Trajectory found for temp {temp}, continuing")
+            # del tmp_traj
+            # os.remove(new_traj) # TODO 
             continue
         else:
             print("Running temperature step ", temp)
@@ -418,7 +428,7 @@ def secondary_equil(job: signac.Project.Job):
         assert tmp_traj != new_traj.as_posix()
 
         gsd_writer = hoomd.write.GSD(filename=tmp_traj,
-                                    trigger=hoomd.trigger.Periodic(step_unit//10, phase=sim.timestep),
+                                    trigger=hoomd.trigger.Periodic(step_unit//50, phase=sim.timestep),
                                     mode='wb',
                                     )
         sim.operations.writers.clear()
@@ -446,11 +456,11 @@ def fire_minimize(job: signac.Project.Job):
     fire, nve = _setup_fire_sim(job, sim)
 
     # setup details for sims
-    runs = glob.glob(job.fn("*equil/equil_temp-*.gsd"))
+    runs = glob.glob(job.fn("fine-equil/equil_temp-*.gsd"))
     for run in runs:
         print(run)
         traj = gsd.hoomd.open(run)
-        fire_traj = run.replace("equil/equil_temp", "analysis/long_fire_temp")
+        fire_traj = run.replace("fine-equil/equil_temp", "analysis/long_fire_temp")
 
         assert fire_traj != traj
 
@@ -458,14 +468,17 @@ def fire_minimize(job: signac.Project.Job):
             tmp_traj = gsd.hoomd.open(fire_traj)
             len_traj = len(tmp_traj)
             del tmp_traj
-            if len_traj == 100:
+            if len_traj == 1000:
+                print("run is done")
                 continue
+            else:
+                print("rerunning")
 
         methods.fire_minimize_frames(
             sim,
             traj,
             fire_traj,
-            fire_steps=1000
+            fire_steps=100
         )
 
     job.doc["fire_applied"] = True

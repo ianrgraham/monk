@@ -332,54 +332,54 @@ def sc_fine_quench(job: signac.Project.Job):
     doc["fine_quench_done"] = True
 
 
-@Project.operation
-@Project.pre.after(primary_equil_quench)
-@Project.post.true("sparse_secondary_equilibration_done")
-def sparse_secondary_equil(job: signac.Project.Job):
+# @Project.operation
+# @Project.pre.after(primary_equil_quench)
+# @Project.post.true("sparse_secondary_equilibration_done")
+# def sparse_secondary_equil(job: signac.Project.Job):
 
-    doc = job.doc
-    sp = job.sp
-    project = job._project
-    proj_doc = project.doc
+#     doc = job.doc
+#     sp = job.sp
+#     project = job._project
+#     proj_doc = project.doc
 
-    step_unit = proj_doc["step_unit"]
-    run_steps = 10000 * step_unit
+#     step_unit = proj_doc["step_unit"]
+#     run_steps = 10000 * step_unit
 
-    os.makedirs(job.fn("equil"), exist_ok=True)
+#     os.makedirs(job.fn("equil"), exist_ok=True)
 
-    # only analysis the last four runs
-    quench_runs = sorted(glob.glob(job.fn("quench/equil_temp-*.gsd")))[:4]
-    for run in quench_runs:
-        temp = float(utils.extract_between(run, "temp-", ".gsd"))
-        new_traj = pathlib.Path(run.replace("quench", "equil"))
-        if new_traj.exists():
-            print(f"Trajectory found for temp {temp}, skipping")
-            continue
-        else:
-            print("Running temperature step ", temp)
+#     # only analysis the last four runs
+#     quench_runs = sorted(glob.glob(job.fn("quench/equil_temp-*.gsd")))[:4]
+#     for run in quench_runs:
+#         temp = float(utils.extract_between(run, "temp-", ".gsd"))
+#         new_traj = pathlib.Path(run.replace("quench", "equil"))
+#         if new_traj.exists():
+#             print(f"Trajectory found for temp {temp}, skipping")
+#             continue
+#         else:
+#             print("Running temperature step ", temp)
 
-        # run simulation
-        sim = hoomd.Simulation(device=hoomd.device.GPU(), seed=doc["seed"])
-        sim.create_state_from_gsd(filename=run)
-        nvt = _setup_nvt_sim(job, sim, temp=temp)
-        print("Temperature set to ", nvt.kT(sim.timestep))
+#         # run simulation
+#         sim = hoomd.Simulation(device=hoomd.device.GPU(), seed=doc["seed"])
+#         sim.create_state_from_gsd(filename=run)
+#         nvt = _setup_nvt_sim(job, sim, temp=temp)
+#         print("Temperature set to ", nvt.kT(sim.timestep))
 
-        tmp_traj = str(new_traj).replace("equil_temp", "_equil_temp")
-        assert tmp_traj != new_traj.as_posix()
+#         tmp_traj = str(new_traj).replace("equil_temp", "_equil_temp")
+#         assert tmp_traj != new_traj.as_posix()
 
-        gsd_writer = hoomd.write.GSD(filename=tmp_traj,
-                                    trigger=hoomd.trigger.Periodic(10*step_unit, phase=sim.timestep),
-                                    mode='wb',
-                                    )
-        sim.operations.writers.clear()
-        sim.operations.writers.append(gsd_writer)
+#         gsd_writer = hoomd.write.GSD(filename=tmp_traj,
+#                                     trigger=hoomd.trigger.Periodic(10*step_unit, phase=sim.timestep),
+#                                     mode='wb',
+#                                     )
+#         sim.operations.writers.clear()
+#         sim.operations.writers.append(gsd_writer)
 
-        sim.run(run_steps)
+#         sim.run(run_steps)
 
-        shutil.move(tmp_traj, new_traj.as_posix())
+#         shutil.move(tmp_traj, new_traj.as_posix())
 
-    print("Sparse secondary equilibration done")
-    doc["sparse_secondary_equilibration_done"] = True
+#     print("Sparse secondary equilibration done")
+#     doc["sparse_secondary_equilibration_done"] = True
 
 
 @Project.operation
@@ -441,6 +441,65 @@ def secondary_equil(job: signac.Project.Job):
     print("Secondary equilibration done")
     doc["secondary_equilibration_done"] = True
 
+@Project.operation
+@Project.pre.after(sc_fine_quench)
+@Project.post.true("fixed_secondary_equilibration_done")
+def fixed_secondary_equil(job: signac.Project.Job):
+
+    doc = job.doc
+    sp = job.sp
+    project = job._project
+    proj_doc = project.doc
+
+    step_unit = proj_doc["step_unit"]
+    run_steps = 20 * step_unit
+
+    # dir = job.fn("fine-equil")
+    # if os.path.exists(dir):
+    #     shutil.rmtree(dir)
+
+    # return
+
+    os.makedirs(job.fn("fixed-fine-equil"), exist_ok=True)
+
+    # only analysis the last four runs
+    quench_runs = sorted(glob.glob(job.fn("fine/equil_temp-*.gsd")))
+    for run in quench_runs:
+        temp = float(utils.extract_between(run, "temp-", ".gsd"))
+        new_traj = pathlib.Path(run.replace("fine", "fixed-fine-equil"))
+        if new_traj.exists():
+            # tmp_traj = gsd.hoomd.open(new_traj)
+            # len_traj = len(tmp_traj)
+            print(f"Trajectory found for temp {temp}, continuing")
+            # del tmp_traj
+            # os.remove(new_traj) # TODO 
+            continue
+        else:
+            print("Running temperature step ", temp)
+
+        # run simulation
+        sim = hoomd.Simulation(device=hoomd.device.GPU(), seed=doc["seed"])
+        sim.create_state_from_gsd(filename=run)
+        nvt = _setup_nvt_sim(job, sim, temp=temp)
+        print("Temperature set to ", nvt.kT(sim.timestep))
+
+        tmp_traj = str(new_traj).replace("equil_temp", "_equil_temp")
+        assert tmp_traj != new_traj.as_posix()
+
+        gsd_writer = hoomd.write.GSD(filename=tmp_traj,
+                                    trigger=hoomd.trigger.Periodic(step_unit//50, phase=sim.timestep),
+                                    mode='wb',
+                                    )
+        sim.operations.writers.clear()
+        sim.operations.writers.append(gsd_writer)
+
+        sim.run(run_steps)
+
+        shutil.move(tmp_traj, new_traj.as_posix())
+
+    print("Fixed secondary equilibration done")
+    doc["fixed_secondary_equilibration_done"] = True
+
 
 @Project.operation
 @Project.pre.after(secondary_equil)
@@ -483,15 +542,123 @@ def fire_minimize(job: signac.Project.Job):
 
     job.doc["fire_applied"] = True
 
+
 @Project.operation
-@Project.pre.after(fire_minimize)
+@Project.pre.after(fixed_secondary_equil)
+@Project.post.true("fixed_fire_applied")
+def fixed_fire_minimize(job: signac.Project.Job):
+    sp = job.sp
+    doc = job.doc
+
+    os.makedirs(job.fn("fixed-analysis"), exist_ok=True)
+
+    sim = hoomd.Simulation(hoomd.device.GPU(), seed=doc["seed"])
+    sim.create_state_from_gsd(job.fn("init.gsd"))
+    fire, nve = _setup_fire_sim(job, sim)
+
+    # setup details for sims
+    runs = glob.glob(job.fn("fixed-fine-equil/equil_temp-*.gsd"))
+    for run in runs:
+        print(run)
+        traj = gsd.hoomd.open(run)
+        fire_traj = run.replace("fixed-fine-equil/equil_temp", "fixed-analysis/fire_temp")
+
+        assert fire_traj != traj
+
+        if os.path.isfile(fire_traj):
+            tmp_traj = gsd.hoomd.open(fire_traj)
+            len_traj = len(tmp_traj)
+            del tmp_traj
+            if len_traj == 1000:
+                print("run is done")
+                continue
+            else:
+                print("rerunning")
+
+        methods.fire_minimize_frames(
+            sim,
+            traj,
+            fire_traj,
+            fire_steps=100
+        )
+
+    job.doc["fixed_fire_applied"] = True
+
+@Project.operation
+@Project.pre.after(fixed_fire_minimize)
+@Project.post.true('test_sfs_computed')
+def compute_test_sfs(job: signac.Project.Job):
+    """Compute stucture functions for testing."""
+
+    print("Job ID:", job.id)
+
+    runs = glob.glob(job.fn("fixed-analysis/fire_temp-*.gsd"))
+    for run in runs:
+        print(run)
+        traj = gsd.hoomd.open(run)
+        ref_snap = traj[0]
+        ref_pos = ref_snap.particles.position.copy()
+        box = freud.box.Box.from_box(ref_snap.configuration.box)
+        pos_shape = ref_pos.shape
+        pos = np.zeros((len(traj), *pos_shape), dtype=np.float32)
+        pos[0] = ref_pos
+        for i, snap in enumerate(traj[1:]):
+            next_pos = snap.particles.position.copy()
+            pos[i+1] = box.wrap(next_pos - ref_pos) + pos[i]
+            ref_pos = next_pos
+
+        # compute phop
+        print("Computing phop")
+        phop = _schmeud.dynamics.p_hop(pos, 101)
+
+        df_frame = []
+        df_tag = []
+        df_type = []
+        df_phop = []
+        df_sf = []
+        df_soft = []
+
+        print("Computing structure functions")
+        for frame in range(0, len(phop), 50):
+            snap: gsd.hoomd.Snapshot = traj[int(frame)]
+            num_particles = snap.particles.N
+
+            # get sfs
+            sfs = ml.compute_structure_functions_snap(snap)
+
+            df_frame.append(frame*np.ones(num_particles, dtype=np.uint32))
+            df_tag.append(np.arange(num_particles))
+            df_type.append(snap.particles.typeid)
+            df_phop.append(phop[frame])
+            df_sf.append(sfs)
+
+        df = pd.DataFrame(
+            {
+                "frame": np.concatenate(df_frame),
+                "tag": np.concatenate(df_tag),
+                "type": np.concatenate(df_type),
+                "phop": np.concatenate(df_phop),
+                "sf": list(np.concatenate(df_sf))
+            }
+        )
+
+        out_file = run.replace("fire", "analysis-sfs").replace(".gsd", ".parquet")
+
+        assert out_file != run
+
+        df.to_parquet(out_file)
+
+    job.doc["test_sfs_computed"] = True
+
+@Project.operation
+@Project.pre.after(fixed_fire_minimize)
 @Project.post.true('training_sfs_computed')
 def compute_training_sfs(job: signac.Project.Job):
     """Compute stucture functions for training."""
 
     print("Job ID:", job.id)
     # only one run should be used
-    runs = sorted(glob.glob(job.fn("analysis/fire_temp-*.gsd")))
+    runs = sorted(glob.glob(job.fn("fixed-analysis/fire_temp-*.gsd")))
     run = runs[0]
     traj = gsd.hoomd.open(run)
     ref_snap = traj[0]
@@ -507,7 +674,7 @@ def compute_training_sfs(job: signac.Project.Job):
 
     # compute phop
     print("Computing phop")
-    phop = _schmeud.dynamics.p_hop(pos, 11)
+    phop = _schmeud.dynamics.p_hop(pos, 101)
 
     soft_hard_indices = ml.group_hard_soft_by_cutoffs(phop, 0.05, 0.2, distance=100, hard_distance=800, sub_slice=slice(0, len(phop)))
 

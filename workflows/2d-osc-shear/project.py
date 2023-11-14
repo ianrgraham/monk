@@ -379,6 +379,51 @@ def aqs_therm_shear_experiment(job: signac.Project.Job):
 
     doc["aqs_therm_experiment_completed"] = True
 
+@Project.operation
+@Project.pre.after(aqs_therm_shear_experiment)
+@Project.post.true("aqs_therm_fire_applied")
+def aqs_therm_fire_minimize(job: signac.Project.Job):
+    sp = job.sp
+    doc = job.doc
+    print(job)
+
+    sim = hoomd.Simulation(hoomd.device.GPU(), seed=doc["seed"])
+    sim.create_state_from_gsd(job.fn("init.gsd"))
+    fire, nve = _setup_fire_sim(job, sim)
+
+    # setup details for sims
+    runs = glob.glob(job.fn(f"aqs_therm_experiments/max-shear-*/temp-*/traj_period-*.gsd"))
+    for run in runs:
+        print(run)
+        traj = gsd.hoomd.open(run)
+        orig_len = len(traj)
+        print(orig_len)
+        fire_traj = run.replace("traj_period", "traj-fire_period")
+        print(run)
+        print(fire_traj)
+
+        assert fire_traj != traj
+
+        if os.path.isfile(fire_traj):
+            tmp_traj = gsd.hoomd.open(fire_traj)
+            len_traj = len(tmp_traj)
+            del tmp_traj
+            if len_traj == orig_len:
+                print("run is done")
+                continue
+            else:
+                print("rerunning")
+
+        methods.fire_minimize_frames(
+            sim,
+            traj,
+            fire_traj,
+            fire_steps=100
+        )
+        print("done")
+    print("all done!")
+    job.doc["aqs_therm_fire_applied"] = True
+
 
 @dataclass(frozen=True, eq=True)
 class Statepoint:

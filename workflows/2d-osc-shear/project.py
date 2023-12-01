@@ -8,6 +8,7 @@ import gsd.hoomd
 import freud
 import numpy as np
 import pandas as pd
+import polars as pl
 
 import glob
 import os
@@ -20,12 +21,16 @@ import pathlib
 import math
 import itertools
 
+from tqdm import tqdm
+
 from dataclasses import dataclass
 from collections import defaultdict
 
 from monk import workflow, methods, pair, utils, prep
 import schmeud._schmeud as _schmeud
 from schmeud import ml
+
+from excess_entropy import *
 
 config = workflow.get_config()
 
@@ -542,6 +547,80 @@ def t1_counts(job: signac.Project.Job):
         dataset.to_parquet(output_file)
 
     doc["t1_counts_completed"] = True
+
+@Project.operation
+@Project.pre.after(aqs_therm_shear_experiment)
+@Project.post.true("trad_excess_entropy_computed")
+def trad_excess_entropy(job: signac.Project.Job):
+    print(job)
+    
+    experiments = sorted(glob.glob(job.fn("aqs_therm_experiments/*/*/traj_period-*.gsd")))
+    if len(experiments) == 0:
+        return
+    for exper in experiments:
+        max_shear = utils.extract_between(exper, "max-shear-", "/")
+        period = utils.extract_between(exper, "period-", ".gsd")
+        temp = utils.extract_between(exper, "temp-", "/")
+        df_path = f"aqs_therm_experiments/max-shear-{max_shear}/temp-{temp}/excess-entropy-small_period-{period}.parquet"
+        
+        if float(period) != 1000.0:
+            continue
+
+        # if job.isfile(df_path):
+        #     continue
+
+        traj = gsd.hoomd.open(exper)
+
+        
+        print(max_shear, period, temp)
+
+        entropy = []
+        # rdfs = []
+        rdf_aas = []
+        rdf_abs = []
+        rdf_bbs = []
+        rs = []
+        frames = []
+        # types = []
+        start = 60
+        end = 80
+        cycle_start_idx = lambda i: -1 + i*40
+        for frame in tqdm(range(cycle_start_idx(start), cycle_start_idx(end))):
+
+            frames.append(frame)
+
+            snap = traj[frame]
+
+            typeids = snap.particles.typeid
+            # types.append(typeids)
+
+            box = snap.configuration.box
+            pos_a = snap.particles.position[typeids == 0]
+            pos_b = snap.particles.position[typeids == 1]
+
+            query_a = freud.locality.AABBQuery.from_system((box, pos_a))
+            query_b = freud.locality.AABBQuery.from_system((box, pos_b))
+
+            query_args = {"r_min": 0.01, "r_max": 6.0}
+            nlist_aa = query_a.query(pos_a, query_args).toNeighborList()
+            nlist_ab = query_b.query(pos_a, query_args).toNeighborList()
+            nlist_bb = query_b.query(pos_b, query_args).toNeighborList()
+            r, rdf_aa = compute_rdf(nlist_aa, bins=120, r_max=6)
+            _, rdf_ab = compute_rdf(nlist_ab, bins=120, r_max=6)
+            _, rdf_bb = compute_rdf(nlist_bb, bins=120, r_max=6)
+
+            rdf_aas.append(rdf_aa)
+            rdf_abs.append(rdf_ab)
+            rdf_bbs.append(rdf_bb)
+            rs.append(r)
+            
+            entropy.append(binary_excess_entropy(r, rdf_aa, rdf_ab, rdf_bb, 0.6, 0.4, r[1] - r[0]))
+            # break
+        # break
+        dataset = pl.DataFrame({"frame": frames, "r": rs, "rdf_aa": rdf_aas, "rdf_ab": rdf_abs, "rdf_bb": rdf_bbs, "entropy": entropy})
+        # # dataset = dataset.explode(["id", "soft"]).reset_index(drop=True)
+        dataset.write_parquet(job.fn(df_path), use_pyarrow=True)
+    job.doc["trad_excess_entropy_computed"] = True
 
 if __name__ == "__main__":
     Project.get_project(root=config["root"]).main()

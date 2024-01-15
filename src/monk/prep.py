@@ -103,6 +103,9 @@ def uniform_random_snapshot(
     if ratios is None:
         ratios = [50, 50]
 
+    if diams is None:
+        diams = [7/6, 5/6]
+
     # only valid dims in hoomd are 2 and 3
     assert dim in [2, 3], "Valid dims in hoomd are 2 and 3"
     assert L > 0, "Box length cannot be <= 0"
@@ -128,7 +131,7 @@ def uniform_random_snapshot(
     snapshot.configuration.box = [L, L, Lz, 0.0, 0.0, 0.0]
     snapshot.particles.types = particle_types
     snapshot.particles.typeid = [0] * N
-    snapshot.particles.diameter = [0] * N
+    snapshot.particles.diameter = np.array([0.0] * N, dtype=np.float64)
 
     # assign particle labels with rng
     idx = 0

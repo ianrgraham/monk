@@ -25,6 +25,7 @@ droplet_environment.yml
 
 # image output
 *.png
+*.svg
 
 # any analysis output
 *.npy
@@ -57,3 +58,6 @@ figures
 # rust
 Cargo.lock
 target
+
+# pytorch
+*.pth

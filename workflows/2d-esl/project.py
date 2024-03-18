@@ -452,7 +452,7 @@ def fixed_secondary_equil(job: signac.Project.Job):
     proj_doc = project.doc
 
     step_unit = proj_doc["step_unit"]
-    run_steps = 20 * step_unit
+    run_steps = 20 * step_unit  # 100 t_lj
 
     # dir = job.fn("fine-equil")
     # if os.path.exists(dir):

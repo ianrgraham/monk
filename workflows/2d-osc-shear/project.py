@@ -411,8 +411,13 @@ def longer_shear_experiment(job: signac.Project.Job):
     # temps = doc["temps"]
     # temps.append(doc["temps"][-1]*0.1)
     # temps.append(doc["temps"][-1]*0.01)
-    temps = [0.049591143158489615, 0.09918228631697923, 0.14877342947546884, 0.19836457263395846, 0.01983645726339585, 0.001983645726339585]  # 0.00019836457263395848
+    temps = [0.01983645726339585, 0.001983645726339585]  # 0.00019836457263395848
 
+    # , 0.049591143158489615, 0.09918228631697923
+
+    # 0.14877342947546884, 0.19836457263395846, # removed this because data
+    # just isn't interesting out here
+    
     # temps = [doc["temps"][-1]*0.1, doc["temps"][-1]*0.01]  # 0.1 * Tg and 0.01 * Tg
 
     for temp, period, max_shear in itertools.product(temps, period_times, max_shears):
@@ -533,7 +538,10 @@ def heavy_shear_experiment(job: signac.Project.Job):
     # temps = doc["temps"]
     # temps.append(doc["temps"][-1]*0.1)
     # temps.append(doc["temps"][-1]*0.01)
-    temps = [0.049591143158489615, 0.09918228631697923, 0.14877342947546884, 0.19836457263395846, 0.01983645726339585, 0.001983645726339585]  # 0.00019836457263395848
+    temps = [0.01983645726339585, 0.001983645726339585, 0.049591143158489615, 0.09918228631697923]  # 0.00019836457263395848
+
+    # 0.14877342947546884, 0.19836457263395846, # removed this because data
+    # just isn't interesting out here
 
     # temps = [doc["temps"][-1]*0.1, doc["temps"][-1]*0.01]  # 0.1 * Tg and 0.01 * Tg
 
@@ -630,6 +638,7 @@ def heavy_shear_experiment(job: signac.Project.Job):
 
 
 @Project.operation
+@Project.pre.true("initialized")
 @Project.post.true("init_fire_applied")
 def init_fire_minimize(job: signac.Project.Job):
     sp = job.sp

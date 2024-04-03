@@ -1,5 +1,0 @@
-# softness
-
-compute softness for all stroboscopic frames
-get softness harmonics and make images
-get softness correlation functions

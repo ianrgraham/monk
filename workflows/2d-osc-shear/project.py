@@ -511,6 +511,227 @@ def longer_shear_experiment(job: signac.Project.Job):
 
     doc["longer_experiment_completed"] = True
 
+@Project.operation
+@Project.pre.true("initialized")
+@Project.post.true("no_shear_experiment_completed")
+def no_shear_experiment(job: signac.Project.Job):
+    doc = job.doc
+    sp = job.sp
+    project = job._project
+    proj_doc = project.doc
+
+    dt = proj_doc["dt"]
+    step_unit = proj_doc["step_unit"]
+    equil_time = proj_doc["equil_time"]
+    equil_steps = int(equil_time * step_unit)
+    min_periods = 10
+    dumps = proj_doc["dumps"]
+    # period_times = proj_doc["period_times"]
+    period_times = [1000.0]  # only do long timestep, others don't matter
+    # max_shears = proj_doc["max_shears"]
+    # max_shears.append(0.04)
+    # max_shears.append(0.06)
+    # max_shears.append(0.07)
+    max_shears = [0.0]
+
+    Tg = 0.1983645726339585
+    temps = np.array([0.01, 0.05, 0.1, 0.2, 0.25, 0.4, 0.5, 0.65, 0.75, 0.9, 1.0, 0.0, 0.0]) * Tg
+    temps[-2] = 0.3
+    temps[-1] = 0.4
+
+    # , 0.049591143158489615, 0.09918228631697923
+
+    # 0.14877342947546884, 0.19836457263395846, # removed this because data
+    # just isn't interesting out here
+    
+    # temps = [doc["temps"][-1]*0.1, doc["temps"][-1]*0.01]  # 0.1 * Tg and 0.01 * Tg
+
+    for temp, period, max_shear in itertools.product(temps, period_times, max_shears):
+
+        path = pathlib.Path(job.fn(f"no_shear_experiments/max-shear-{max_shear:.2f}/temp-{temp:.4e}"))
+        os.makedirs(path.as_posix(), exist_ok=True)
+
+        outfile = path / f"traj_period-{period}.gsd"
+        preequiled_outfile = path / f"preequiled-traj_period-{period}.gsd"  # we might preequil in the future, but not now
+        badfile = path / f"traj_period-{period}.gsd.bad"
+        print("Current file:", outfile.as_posix())
+
+        if badfile.exists():
+            print("Bad file exists, skipping")
+            continue
+
+        if outfile.exists():
+            file = gsd.hoomd.open(str(outfile), "rb")
+            if len(file) >= min_periods * dumps:
+
+                print("File already exists, skipping")
+                continue
+
+        if preequiled_outfile.exists():
+            file = gsd.hoomd.open(str(preequiled_outfile), "rb")
+            if len(file) >= min_periods * dumps:
+
+                print("Preequiled file already exists, skipping")
+                continue
+
+        period_steps = int(period * step_unit)
+        total_steps = int(min_periods * period_steps)
+        output_period = int(period_steps / dumps)
+
+        # make sure period_steps is a multiple of dumps
+        assert period_steps % dumps == 0
+
+        try:
+            sim = hoomd.Simulation(device=hoomd.device.GPU(), seed=doc["seed"])
+            sim.create_state_from_gsd(job.fn("init.gsd"))
+            if temp == 0.0:
+                fire, nve = _setup_fire_sim(job, sim)
+                raise NotImplementedError("Fire is not yet implemented")
+                while not fire.converged:
+                    sim.run(1000)
+            else:
+                nvt = _setup_nvt_sim(job, sim, temp=temp)
+
+                sim.run(0)
+                sim.state.thermalize_particle_momenta(filter=hoomd.filter.All(), kT=temp)
+
+            # don't run preruns
+            sim.run(equil_steps)
+
+            thermo = hoomd.md.compute.ThermodynamicQuantities(filter=hoomd.filter.All())
+            logger = hoomd.logging.Logger()
+            logger.add(thermo, quantities=["pressure", "pressure_tensor", "kinetic_temperature"])
+            sim.operations.computes.clear()
+            sim.operations.computes.append(thermo)
+
+            gsd_writer = hoomd.write.GSD(hoomd.trigger.Periodic(output_period), outfile, mode="wb", log=logger)
+            sim.operations.writers.clear()
+            sim.operations.writers.append(gsd_writer)
+
+            # sim.operations.updaters.clear()
+            # trigger = hoomd.trigger.Periodic(1)
+            # variant = methods.Oscillate(1, sim.timestep, period_steps)
+            # old_box = sim.state.box
+            # new_box = copy.deepcopy(old_box)
+            # old_box.xy = -max_shear
+            # new_box.xy = max_shear
+            # updater = hoomd.update.BoxResize(trigger, old_box, new_box, variant)
+            # sim.operations.updaters.append(updater)
+
+            sim.run(total_steps)
+            
+        except KeyboardInterrupt:
+            raise
+        except:
+            print("Error during run, saving bad file")
+            shutil.move(outfile.as_posix(), badfile.as_posix())
+        finally:
+            try:
+                logger.remove(thermo)
+                sim.operations.computes.clear()
+                del thermo
+                print("Finished run")
+            except NameError:
+                print("Something weird happened, but run is over")
+            
+
+    doc["no_shear_experiment_completed"] = True
+
+
+@Project.operation
+@Project.pre.true("initialized")
+@Project.post.true("no_shear_experiment_short_completed")
+def no_shear_short_experiment(job: signac.Project.Job):
+    doc = job.doc
+    sp = job.sp
+    project = job._project
+    proj_doc = project.doc
+
+    dt = proj_doc["dt"]
+    step_unit = proj_doc["step_unit"]
+    equil_time = proj_doc["equil_time"]
+    equil_steps = int(equil_time * step_unit)
+    min_periods = 4
+    record_steps = int(200 * step_unit)
+    dumps = proj_doc["dumps"]
+    period_times = [5000.0]  # only do long timestep, others don't matter
+
+    max_shears = [0.0]
+
+    Tg = 0.1983645726339585
+    temps = np.array([0.25, 0.5, 0.75, 1.0, 0.0, 0.0]) * Tg
+    temps[-2] = 0.3
+    temps[-1] = 0.4
+
+    for temp, period, max_shear in itertools.product(temps, period_times, max_shears):
+
+        path = pathlib.Path(job.fn(f"no_shear_short_experiments/max-shear-{max_shear:.2f}/temp-{temp:.4e}"))
+        os.makedirs(path.as_posix(), exist_ok=True)
+
+        period_steps = int(period * step_unit)
+
+
+        try:
+            sim = hoomd.Simulation(device=hoomd.device.GPU(), seed=doc["seed"])
+            sim.create_state_from_gsd(job.fn("init.gsd"))
+            if temp == 0.0:
+                fire, nve = _setup_fire_sim(job, sim)
+                raise NotImplementedError("Fire is not yet implemented")
+                while not fire.converged:
+                    sim.run(1000)
+            else:
+                nvt = _setup_nvt_sim(job, sim, temp=temp)
+
+                sim.run(0)
+                sim.state.thermalize_particle_momenta(filter=hoomd.filter.All(), kT=temp)
+
+            # don't run preruns
+            sim.run(equil_steps)
+
+            thermo = hoomd.md.compute.ThermodynamicQuantities(filter=hoomd.filter.All())
+            logger = hoomd.logging.Logger()
+            logger.add(thermo, quantities=["pressure", "pressure_tensor", "kinetic_temperature"])
+            sim.operations.computes.clear()
+            sim.operations.computes.append(thermo)
+
+            missing_files = False
+            for i in range(min_periods):
+                outfile = path / f"traj_period-{period}_iter-{i}.gsd"
+                if not outfile.exists():
+                    missing_files = True
+                    break
+
+            if not missing_files:
+                print("All files exist, skipping")
+                continue
+            for i in range(min_periods):
+                outfile = path / f"traj_period-{period}_iter-{i}.gsd"
+                badfile = path / f"traj_period-{period}_iter-{i}.gsd.bad"
+                gsd_writer = hoomd.write.GSD(hoomd.trigger.Periodic(step_unit), outfile, mode="wb", log=logger)
+                sim.operations.writers.clear()
+                sim.operations.writers.append(gsd_writer)
+
+                sim.run(record_steps)
+                sim.operations.writers.clear()
+                sim.run(period_steps - record_steps)
+            
+        except KeyboardInterrupt:
+            raise
+        except:
+            print("Error during run, saving bad file")
+            shutil.move(outfile.as_posix(), badfile.as_posix())
+        finally:
+            try:
+                logger.remove(thermo)
+                sim.operations.computes.clear()
+                del thermo
+                print("Finished run")
+            except NameError:
+                print("Something weird happened, but run is over")
+            
+
+    doc["no_shear_experiment_short_completed"] = True
+
 
 @Project.operation
 @Project.pre.true("initialized")
@@ -681,6 +902,98 @@ def init_fire_minimize(job: signac.Project.Job):
         print("done")
     print("all done!")
     job.doc["init_fire_applied"] = True
+
+
+@Project.operation
+@Project.pre.after(no_shear_experiment)
+@Project.post.true("no_shear_fire_applied")
+def no_shear_fire_minimize(job: signac.Project.Job):
+    sp = job.sp
+    doc = job.doc
+    print(job)
+
+    sim = hoomd.Simulation(hoomd.device.GPU(), seed=doc["seed"])
+    sim.create_state_from_gsd(job.fn("init.gsd"))
+    fire, nve = _setup_fire_sim(job, sim)
+
+    # setup details for sims
+    runs = glob.glob(job.fn(f"no_shear_experiments/max-shear-*/temp-*/traj_period-*.gsd"))
+    for run in runs:
+        print(run)
+        traj = gsd.hoomd.open(run)
+        orig_len = len(traj)
+        print(orig_len)
+        fire_traj = run.replace("traj_period", "traj-fire_period")
+        print(run)
+        print(fire_traj)
+
+        assert fire_traj != traj
+
+        if os.path.isfile(fire_traj):
+            tmp_traj = gsd.hoomd.open(fire_traj)
+            len_traj = len(tmp_traj)
+            del tmp_traj
+            if len_traj == orig_len:
+                print("run is done")
+                continue
+            else:
+                print("rerunning")
+
+        methods.fire_minimize_frames(
+            sim,
+            traj,
+            fire_traj,
+            fire_steps=100
+        )
+        print("done")
+    print("all done!")
+    job.doc["no_shear_fire_applied"] = True
+
+
+@Project.operation
+@Project.pre.after(no_shear_experiment)
+@Project.post.true("no_shear_short_fire_applied")
+def no_shear_short_fire_minimize(job: signac.Project.Job):
+    sp = job.sp
+    doc = job.doc
+    print(job)
+
+    sim = hoomd.Simulation(hoomd.device.GPU(), seed=doc["seed"])
+    sim.create_state_from_gsd(job.fn("init.gsd"))
+    fire, nve = _setup_fire_sim(job, sim)
+
+    # setup details for sims
+    runs = glob.glob(job.fn(f"no_shear_short_experiments/max-shear-*/temp-*/traj_period-*.gsd"))
+    for run in runs:
+        print(run)
+        traj = gsd.hoomd.open(run)
+        orig_len = len(traj)
+        print(orig_len)
+        fire_traj = run.replace("traj_period", "traj-fire_period")
+        print(run)
+        print(fire_traj)
+
+        assert fire_traj != traj
+
+        if os.path.isfile(fire_traj):
+            tmp_traj = gsd.hoomd.open(fire_traj)
+            len_traj = len(tmp_traj)
+            del tmp_traj
+            if len_traj == orig_len:
+                print("run is done")
+                continue
+            else:
+                print("rerunning")
+
+        methods.fire_minimize_frames(
+            sim,
+            traj,
+            fire_traj,
+            fire_steps=100
+        )
+        print("done")
+    print("all done!")
+    job.doc["no_shear_short_fire_applied"] = True
 
 
 @Project.operation

@@ -34,8 +34,8 @@ def wrap(x, box):
 def d2min_py(b0, b):
     """Calculates D2min for a set of bonds
     Args
-        b0: initial bond lengths
-        b: final bond lengths
+        b0: initial bond vectors
+        b: final bond vectors
     """
     V = b0.transpose().dot(b0)
     W = b0.transpose().dot(b)

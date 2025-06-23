@@ -71,6 +71,51 @@ def fire_minimize_analysis_runs(job: signac.Project.Job):
 
     job.doc["fire_applied"] = True
 
+# project.find_jobs({"delta": 0.0, "replica": 0.0}, {"_CRYSTAL": {"$exists": False}})
+@Project.operation
+@Project.pre(lambda job: not job.doc.get('_CRYSTAL') and job.sp.get("replica") == 0 and job.sp.get("delta") == 0.0)
+@Project.post.true('long_fire_applied')
+def fire_minimize_long_vis_runs(job: signac.Project.Job):
+    """Apply FIRE minimization to the runs ready for analysis."""
+    sp = job.sp
+    doc = job.doc
+
+    sim = hoomd.Simulation(hoomd.device.GPU(), seed=doc["seed"])
+    sim.create_state_from_gsd(job.fn("init.gsd"))
+
+    fire = hoomd.md.minimize.FIRE(1e-2, 1e-3, 1.0, 1e-3)
+
+    nlist = hoomd.md.nlist.Tree(buffer=0.3)
+    mlj = pair.KA_ModLJ(nlist, sp["delta"])
+    nve = hoomd.md.methods.NVE(filter=hoomd.filter.All())
+    fire.forces = [mlj]
+    fire.methods = [nve]
+    sim.operations.integrator = fire
+
+    # setup details for sims
+    runs = glob.glob(job.fn("long_runs/temp-*/traj.gsd"))
+    for run in runs:
+        print(run)
+        traj = gsd.hoomd.open(run)
+        fire_traj = run.replace("traj.gsd", "fire_traj.gsd")
+
+        assert fire_traj != traj
+
+        if os.path.isfile(fire_traj):
+            tmp_traj = gsd.hoomd.open(fire_traj)
+            len_traj = len(tmp_traj)
+            del tmp_traj
+            if len_traj == len(traj):
+                continue
+
+        methods.fire_minimize_frames(
+            sim,
+            traj,
+            fire_traj
+        )
+
+    job.doc["fire_applied"] = True
+
 
 @Project.operation
 @Project.pre.true('fire_applied')
@@ -533,6 +578,85 @@ def compute_struct_descr(job: signac.Project.Job):
 
     job.doc["struct_descrs_computed"] = True
 
+
+@Project.operation
+# @Project.pre.true('analysis_sfs_computed')
+@Project.pre(lambda job: not job.doc.get('_CRYSTAL') and job.sp.get("replica") == 0 and job.sp.get("delta") == 0.0)
+@Project.post.true('struct_descrs_long_computed')
+def compute_struct_long_descr(job: signac.Project.Job):
+    """Compute structural descriptors for analysis."""
+
+    print("Job ID:", job.id)
+    # only one run should be used
+    runs = glob.glob(job.fn("long_runs/*/fire_traj.gsd"))
+    delta = job.sp["delta"]
+    project = job._project
+    for run in runs:
+        print(run)
+        traj = gsd.hoomd.open(run)
+        ref_snap = traj[0]
+        ref_pos = ref_snap.particles.position.copy()
+        box = freud.box.Box.from_box(ref_snap.configuration.box)
+        pos_shape = ref_pos.shape
+        pos = np.zeros((len(traj), *pos_shape), dtype=np.float32)
+        pos[0] = ref_pos
+        for i, snap in enumerate(traj[1:]):
+            next_pos = snap.particles.position.copy()
+            pos[i+1] = box.wrap(next_pos - ref_pos) + pos[i]
+            ref_pos = next_pos
+
+        with open(project.fn(f"softness_pipelines/delta-{delta:.1f}/pipe_ss-0_ts-10.pickle"), "rb") as f:
+            pipeline = pickle.load(f)
+
+        # compute phop
+        print("Computing phop")
+        phop = _schmeud.dynamics.p_hop(pos, 101)
+
+        df_frame = []
+        df_tag = []
+        df_type = []
+        df_phop = []
+        df_soft = []
+
+
+        print("Computing structure functions")
+        for frame in range(0, len(phop)):
+            # soft_indices = np.array(soft_indices, dtype=np.uint32)
+            # hard_indices = np.array(hard_indices, dtype=np.uint32)
+            snap: gsd.hoomd.Snapshot = traj[int(frame)]
+            num_particles = snap.particles.N
+            a_type = snap.particles.typeid == 0
+            # query_indices = np.concatenate([soft_indices, hard_indices])
+            # perm = query_indices.argsort()
+            # sort arrays by query indices
+
+            # get sfs
+            sfs = ml.compute_structure_functions_snap(snap)[a_type]
+
+            df_frame.append(frame*np.ones(num_particles, dtype=np.uint32))
+            df_tag.append(np.arange(num_particles)[a_type])
+            df_type.append(snap.particles.typeid)
+            df_phop.append(phop[frame])
+            soft = pipeline.decision_function(list(sfs))
+            df_soft.append(np.array(soft))
+            # df_sf.append(sfs)
+
+        df = pd.DataFrame(
+            {
+                "frame": np.concatenate(df_frame),
+                "tag": np.concatenate(df_tag),
+                "type": np.concatenate(df_type),
+                "phop": np.concatenate(df_phop),
+                "soft": np.concatenate(df_soft),
+            }
+        )
+
+        out_file = run.replace("fire_traj.gsd", "sig_struct_descrs.parquet")
+        assert out_file != run
+
+        df.to_parquet(out_file)
+
+    job.doc["struct_descrs_long_computed"] = True
 
 class xyLogger:
 

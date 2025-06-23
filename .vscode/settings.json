@@ -7,5 +7,7 @@
     "jupyter.jupyterServerType": "local",
     "C_Cpp.autoAddFileAssociations": false,
     "C_Cpp.errorSquiggles": "disabled",
-    "cmake.configureOnOpen": false
+    "cmake.configureOnOpen": false,
+    // "python.defaultInterpreterPath":
+    // "~/micromamba/envs/monk-310d/bin/python"
 }

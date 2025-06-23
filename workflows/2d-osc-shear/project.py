@@ -431,6 +431,158 @@ def aqs_experiment(job: signac.Project.Job):
 
 @Project.operation
 @Project.pre.true("initialized")
+@Project.post.true("aqs_linear_experiment_completed")
+def aqs_linear_experiment(job: signac.Project.Job):
+    doc = job.doc
+    sp = job.sp
+    project = job._project
+    proj_doc = project.doc
+
+    dt = proj_doc["dt"]
+    step_unit = proj_doc["step_unit"]
+    equil_time = proj_doc["equil_time"]
+    equil_steps = int(equil_time * step_unit)
+    # min_periods = proj_doc["min_periods"]
+    # min_periods = 80
+    # dumps = 150 # proj_doc["dumps"]
+    max_shears = [0.15, 0.40] # proj_doc["max_shears"]
+
+    temp = 0.0
+
+    step_sizes = [0.001] # , 0.0001]
+    
+
+    for max_shear, step_size in itertools.product(max_shears, step_sizes):
+
+
+        period = step_size
+        path = pathlib.Path(job.fn(f"aqs_linear_experiments/max-shear-{max_shear:.2f}/temp-{temp:.4f}"))
+        os.makedirs(path.as_posix(), exist_ok=True)
+
+        outfile = path / f"traj_period-{period}_more-fire.gsd"
+        preequiled_outfile = path / f"preequiled-traj_period-{period}_more-fire.gsd"  # we might preequil in the future, but not now
+        badfile = path / f"traj_period-{period}_more-fire.gsd.bad"
+        print("Current file:", outfile.as_posix())
+
+        # if badfile.exists():
+        #     print("Bad file exists, skipping")
+        #     continue
+
+        # if outfile.exists():
+        #     file = gsd.hoomd.open(str(outfile), "rb")
+        #     if len(file) >= min_periods * dumps:
+
+        #         print("File already exists, skipping")
+        #         continue
+
+        # if preequiled_outfile.exists():
+        #     file = gsd.hoomd.open(str(preequiled_outfile), "rb")
+        #     if len(file) >= min_periods * dumps:
+
+        #         print("Preequiled file already exists, skipping")
+        #         continue
+
+        # quarter_period = int(np.round(max_shear / step_size))
+
+        # period_steps = int(4 * quarter_period)
+
+        xy = np.linspace(0, max_shear, int(max_shear / step_size) + 1)
+
+        # xy = np.concatenate([xy_seg[1:], xy_seg[:-1][::-1], -xy_seg[1:], -xy_seg[:-1][::-1]])
+
+        # assert len(xy) == period_steps
+
+        # steps_between_dumps = int(period_steps / dumps)
+
+        # do_dumps = np.zeros(period_steps, dtype=bool)
+        # do_dumps[steps_between_dumps-1::steps_between_dumps] = True
+
+        # # make sure period_steps is a multiple of dumps
+        # assert period_steps % dumps == 0
+
+        try:
+            sim = hoomd.Simulation(device=hoomd.device.GPU(), seed=doc["seed"])
+            sim.create_state_from_gsd(job.fn("init.gsd"))
+            fire, nve = _setup_fire_sim(job, sim, fire_kwargs={"dt":1e-2, "force_tol": 1e-2, "angmom_tol": 1.0, "energy_tol": 1e-10})
+            # raise NotImplementedError("Fire is not yet implemented")
+            while not fire.converged:
+                sim.run(10_000)
+
+            # don't run preruns
+            sim.run(equil_steps)
+
+            thermo = hoomd.md.compute.ThermodynamicQuantities(filter=hoomd.filter.All())
+            logger = hoomd.logging.Logger()
+            logger.add(thermo, quantities=["pressure", "pressure_tensor", "kinetic_temperature"])
+            sim.operations.computes.clear()
+            sim.operations.computes.append(thermo)
+
+            async_write_trig = methods.AsyncTrigger()
+
+            gsd_writer = hoomd.write.GSD(async_write_trig, outfile, mode="wb", log=logger)
+            sim.operations.writers.clear()
+            sim.operations.writers.append(gsd_writer)
+
+            sim.operations.updaters.clear()
+            # trigger = hoomd.trigger.Periodic(1)
+            # variant = methods.Oscillate(1, sim.timestep, period_steps)
+            # old_box = sim.state.box
+            # new_box = copy.deepcopy(old_box)
+            # old_box.xy = -max_shear
+            # new_box.xy = max_shear
+            # updater = hoomd.update.BoxResize(trigger, old_box, new_box, variant)
+            # sim.operations.updaters.append(updater)
+
+            new_box = sim.state.box
+
+            # change box
+            # sim.state.set_box()
+
+            # sim.run(total_steps)
+
+            pbar = tqdm(total=len(xy))
+
+            # pbar.set_description(f"Iteration {iter+1}/{min_periods}")
+            for xy_val in xy:
+                # print(snap.configuration.box)
+                # print(snap.particles.position[32439])
+                # async_trig.activate()
+                new_box.xy = xy_val
+                hoomd.update.BoxResize.update(sim.state, new_box)
+
+                sim.run(2)
+                fire.reset()
+                # print("pre-run")
+                while not fire.converged:
+                    sim.run(10_000)
+                # print("post-run")
+                # if do_dump:
+                async_write_trig.activate()
+                sim.run(2)
+                pbar.update(1)
+            # reset progress bar
+            pbar.reset()
+                # pbar.refresh()
+                    
+        except KeyboardInterrupt:
+            raise
+        except:
+            print("Error during run, saving bad file")
+            shutil.move(outfile.as_posix(), badfile.as_posix())
+        finally:
+            try:
+                logger.remove(thermo)
+                sim.operations.computes.clear()
+                del thermo
+                print("Finished run")
+            except NameError:
+                print("Something weird happened, but run is over")
+            
+
+    doc["aqs_linear_experiment_completed"] = True
+
+@Project.operation
+@Project.pre.true("initialized")
 @Project.post.true("aqs_experiment_longer_completed")
 def aqs_experiment_longer(job: signac.Project.Job):
     doc = job.doc
@@ -462,6 +614,7 @@ def aqs_experiment_longer(job: signac.Project.Job):
         os.makedirs(path.as_posix(), exist_ok=True)
 
         outfile = path / f"traj_period-{period}_more-fire.gsd"
+        marker = path / "marker3"  # signifies that these folders have slightly different FIRE parameters
         preequiled_outfile = path / f"preequiled-traj_period-{period}_more-fire.gsd"  # we might preequil in the future, but not now
         badfile = path / f"traj_period-{period}_more-fire.gsd.bad"
         print("Current file:", outfile.as_posix())
@@ -510,7 +663,9 @@ def aqs_experiment_longer(job: signac.Project.Job):
 
             sim.operations.integrator = None
 
-            fire, nve = _setup_fire_sim(job, sim, fire_kwargs={"dt": 1e-1, "force_tol": 1e-4, "angmom_tol": 1.0, "energy_tol": 1e-10})
+            marker.touch()
+
+            fire, nve = _setup_fire_sim(job, sim, fire_kwargs={"dt": 2.5e-2, "force_tol": 1e-2, "angmom_tol": 1.0, "energy_tol": 1e-10})
                                         # method=hoomd.md.methods.DisplacementCapped(hoomd.filter.All(), 0.1))
             # raise NotImplementedError("Fire is not yet implemented")
             print("initial_quench")
@@ -597,6 +752,157 @@ def aqs_experiment_longer(job: signac.Project.Job):
             
 
     doc["aqs_experiment_longer_completed"] = True
+
+@Project.operation
+@Project.pre.true("initialized")
+@Project.post.true("aqs_experiment_visualize_completed")
+def aqs_experiment_visualize(job: signac.Project.Job):
+    doc = job.doc
+    sp = job.sp
+    project = job._project
+    proj_doc = project.doc
+
+    dt = proj_doc["dt"]
+    step_unit = proj_doc["step_unit"]
+    equil_time = proj_doc["equil_time"]
+    equil_steps = int(equil_time * step_unit)
+    min_periods = 10 # proj_doc["min_periods"]
+    # min_periods = 80
+    # 200 dumps is best for visualization
+    dumps = 200 # proj_doc["dumps"]
+    max_shears = [0.01, 0.03, 0.05, 0.08, 0.12]#proj_doc["max_shears"]
+
+    temp = 0.0
+
+    step_sizes = [0.001] # , 0.0001]
+
+    print(sp["prep"])
+    
+
+    for max_shear, step_size in itertools.product(max_shears, step_sizes):
+
+
+        period = step_size
+        path = pathlib.Path(job.fn(f"aqs_experiments_visualize/max-shear-{max_shear:.2f}/temp-{temp:.4f}"))
+        os.makedirs(path.as_posix(), exist_ok=True)
+
+        outfile = path / f"traj_period-{period}_more-fire.gsd"
+        preequiled_outfile = path / f"preequiled-traj_period-{period}_more-fire.gsd"  # we might preequil in the future, but not now
+        badfile = path / f"traj_period-{period}_more-fire.gsd.bad"
+        print("Current file:", outfile.as_posix())
+
+
+        if outfile.exists():
+            file = gsd.hoomd.open(str(outfile), "rb")
+            if len(file) >= min_periods * dumps:
+
+                print("File already exists, skipping")
+                continue
+
+        # quarter_period = int(np.round(max_shear / step_size))
+
+        # period_steps = int(4 * quarter_period)
+
+        period_steps = dumps
+
+        # xy_seg = np.linspace(0, max_shear, int(max_shear / step_size) + 1)
+
+        # xy = np.concatenate([xy_seg[1:], xy_seg[:-1][::-1], -xy_seg[1:],
+        # -xy_seg[:-1][::-1]])
+        
+        t = np.linspace(0, 2*np.pi, dumps, endpoint=False)
+
+        xy = max_shear * np.sin(t)
+
+        assert len(xy) == period_steps
+
+        do_dumps = np.zeros(period_steps, dtype=bool)
+        do_dumps[:] = True
+
+        # make sure period_steps is a multiple of dumps
+        assert period_steps % dumps == 0
+
+        try:
+            sim = hoomd.Simulation(device=hoomd.device.GPU(), seed=doc["seed"])
+            sim.create_state_from_gsd(job.fn("init.gsd"))
+
+            nvt = _setup_nvt_sim(job, sim, temp=0.01)
+
+            sim.run(0)
+            sim.state.thermalize_particle_momenta(filter=hoomd.filter.All(), kT=0.01)
+
+            print("run equil")
+            sim.run(equil_steps)
+
+            sim.operations.integrator = None
+
+            fire, nve = _setup_fire_sim(job, sim, fire_kwargs={"dt": 2.5e-2, "force_tol": 1e-2, "angmom_tol": 1.0, "energy_tol": 1e-10})
+            print("initial_quench")
+            pbar = tqdm()
+            fire.reset()
+            while not fire.converged:
+                sim.run(10_000)
+                pbar.update(1)
+                forces = fire.forces[0].forces
+                max_force = np.max(np.linalg.norm(forces, axis=1))
+                pbar.set_postfix({"energy": fire.energy, "force": max_force})
+
+            thermo = hoomd.md.compute.ThermodynamicQuantities(filter=hoomd.filter.All())
+            logger = hoomd.logging.Logger()
+            logger.add(thermo, quantities=["pressure", "pressure_tensor", "kinetic_temperature"])
+            sim.operations.computes.clear()
+            sim.operations.computes.append(thermo)
+
+            async_write_trig = methods.AsyncTrigger()
+
+            gsd_writer = hoomd.write.GSD(async_write_trig, outfile, mode="wb", log=logger)
+            sim.operations.writers.clear()
+            sim.operations.writers.append(gsd_writer)
+
+            sim.operations.updaters.clear()
+
+            new_box = sim.state.box
+
+            pbar = tqdm(total=len(xy))
+
+            for iter in range(min_periods):
+                pbar.set_description(f"Iteration {iter+1}/{min_periods}")
+                for xy_val, do_dump in zip(xy, do_dumps):
+                    new_box.xy = xy_val
+                    hoomd.update.BoxResize.update(sim.state, new_box)
+
+                    sim.run(2)
+                    fire.reset()
+                    # print("pre-run")
+                    while not fire.converged:
+                        sim.run(10_000)
+                    # print("post-run")
+                    if do_dump:
+                        async_write_trig.activate()
+                    sim.run(2)
+                    pbar.update(1)
+                # reset progress bar
+                pbar.reset()
+                # pbar.refresh()
+                    
+        except KeyboardInterrupt:
+            raise
+        except:
+            raise
+            print("Error during run, saving bad file")
+            if outfile.exists():
+                shutil.move(outfile.as_posix(), badfile.as_posix())
+        finally:
+            try:
+                logger.remove(thermo)
+                sim.operations.computes.clear()
+                del thermo
+                print("Finished run")
+            except NameError:
+                print("Something weird happened, but run is over")
+            
+
+    doc["aqs_experiment_visualize_completed"] = True
 
 @Project.operation
 @Project.pre.true("initialized")
@@ -925,12 +1231,14 @@ def longer_shear_experiment(job: signac.Project.Job):
     # max_shears.append(0.04)
     # max_shears.append(0.06)
     # max_shears.append(0.07)
-    max_shears = [0.01, 0.02, 0.03, 0.05, 0.08, 0.12, 0.04, 0.06, 0.07]
+    # max_shears = [0.01, 0.02, 0.03, 0.05, 0.08, 0.12, 0.04, 0.06, 0.07]
+    max_shears = [0.05]
 
     # temps = doc["temps"]
     # temps.append(doc["temps"][-1]*0.1)
     # temps.append(doc["temps"][-1]*0.01)
-    temps = [0.01983645726339585, 0.001983645726339585]  # 0.00019836457263395848
+    # temps = [0.01983645726339585, 0.001983645726339585]  # 0.00019836457263395848
+    temps = [0.09918228631697923]
 
     # , 0.049591143158489615, 0.09918228631697923
 
@@ -1029,6 +1337,135 @@ def longer_shear_experiment(job: signac.Project.Job):
             
 
     doc["longer_experiment_completed"] = True
+
+@Project.operation
+@Project.pre.true("initialized")
+@Project.post.true("longer_half_experiment_completed")
+def longer_half_shear_experiment(job: signac.Project.Job):
+    doc = job.doc
+    sp = job.sp
+    project = job._project
+    proj_doc = project.doc
+
+    dt = proj_doc["dt"]
+    step_unit = proj_doc["step_unit"]
+    equil_time = proj_doc["equil_time"]
+    equil_steps = int(equil_time * step_unit)
+    min_periods = proj_doc["min_periods"] * 10
+    dumps = proj_doc["dumps"]
+    # period_times = proj_doc["period_times"]
+    period_times = [1000.0]  # only do long timestep, others don't matter
+    # max_shears = proj_doc["max_shears"]
+    # max_shears.append(0.04)
+    # max_shears.append(0.06)
+    # max_shears.append(0.07)
+    # max_shears = [0.01, 0.02, 0.03, 0.05, 0.08, 0.12, 0.04, 0.06, 0.07]
+    max_shears = [0.05]
+
+    # temps = doc["temps"]
+    # temps.append(doc["temps"][-1]*0.1)
+    # temps.append(doc["temps"][-1]*0.01)
+    # temps = [0.01983645726339585, 0.001983645726339585]  # 0.00019836457263395848
+    # temps = [0.09918228631697923]
+    temps = [0.001983645726339585]
+
+    # , 0.049591143158489615, 0.09918228631697923
+
+    # 0.14877342947546884, 0.19836457263395846, # removed this because data
+    # just isn't interesting out here
+    
+    # temps = [doc["temps"][-1]*0.1, doc["temps"][-1]*0.01]  # 0.1 * Tg and 0.01 * Tg
+
+    for temp, period, max_shear in itertools.product(temps, period_times, max_shears):
+
+        path = pathlib.Path(job.fn(f"longer_half_experiments/max-shear-{max_shear:.2f}/temp-{temp:.4e}"))
+        os.makedirs(path.as_posix(), exist_ok=True)
+
+        outfile = path / f"traj_period-{period}.gsd"
+        preequiled_outfile = path / f"preequiled-traj_period-{period}.gsd"  # we might preequil in the future, but not now
+        badfile = path / f"traj_period-{period}.gsd.bad"
+        print("Current file:", outfile.as_posix())
+
+        if badfile.exists():
+            print("Bad file exists, skipping")
+            continue
+
+        if outfile.exists():
+            file = gsd.hoomd.open(str(outfile), "rb")
+            if len(file) >= min_periods * dumps:
+
+                print("File already exists, skipping")
+                continue
+
+        if preequiled_outfile.exists():
+            file = gsd.hoomd.open(str(preequiled_outfile), "rb")
+            if len(file) >= min_periods * dumps:
+
+                print("Preequiled file already exists, skipping")
+                continue
+
+        period_steps = int(period * step_unit)
+        total_steps = int(min_periods * period_steps)
+        output_period = int(period_steps / dumps)
+
+        # make sure period_steps is a multiple of dumps
+        assert period_steps % dumps == 0
+
+        try:
+            sim = hoomd.Simulation(device=hoomd.device.GPU(), seed=doc["seed"])
+            sim.create_state_from_gsd(job.fn("init.gsd"))
+            if temp == 0.0:
+                fire, nve = _setup_fire_sim(job, sim)
+                raise NotImplementedError("Fire is not yet implemented")
+                while not fire.converged:
+                    sim.run(1000)
+            else:
+                nvt = _setup_nvt_sim(job, sim, temp=temp)
+
+                sim.run(0)
+                sim.state.thermalize_particle_momenta(filter=hoomd.filter.All(), kT=temp)
+
+            # don't run preruns
+            sim.run(equil_steps)
+
+            thermo = hoomd.md.compute.ThermodynamicQuantities(filter=hoomd.filter.All())
+            logger = hoomd.logging.Logger()
+            logger.add(thermo, quantities=["pressure", "pressure_tensor", "kinetic_temperature"])
+            sim.operations.computes.clear()
+            sim.operations.computes.append(thermo)
+
+            gsd_writer = hoomd.write.GSD(hoomd.trigger.Periodic(output_period), outfile, mode="wb", log=logger)
+            sim.operations.writers.clear()
+            sim.operations.writers.append(gsd_writer)
+
+            sim.operations.updaters.clear()
+            trigger = hoomd.trigger.Periodic(1)
+            variant = methods.Oscillate(1, sim.timestep, period_steps, phase=-np.pi/2.0)
+            old_box = sim.state.box
+            new_box = copy.deepcopy(old_box)
+            old_box.xy = 0.0
+            new_box.xy = max_shear
+            updater = hoomd.update.BoxResize(trigger, old_box, new_box, variant)
+            sim.operations.updaters.append(updater)
+
+            sim.run(total_steps)
+            
+        except KeyboardInterrupt:
+            raise
+        except:
+            print("Error during run, saving bad file")
+            shutil.move(outfile.as_posix(), badfile.as_posix())
+        finally:
+            try:
+                logger.remove(thermo)
+                sim.operations.computes.clear()
+                del thermo
+                print("Finished run")
+            except NameError:
+                print("Something weird happened, but run is over")
+            
+
+    doc["longer_half_experiment_completed"] = True
 
 @Project.operation
 @Project.pre.true("initialized")
@@ -1159,6 +1596,134 @@ def longest_shear_experiment(job: signac.Project.Job):
             
 
     doc["longest_experiment_completed"] = True
+
+@Project.operation
+@Project.pre.true("initialized")
+@Project.post.true("lowstorage_longest_experiment_completed")
+def lowstorage_longest_shear_experiment(job: signac.Project.Job):
+    doc = job.doc
+    sp = job.sp
+    project = job._project
+    proj_doc = project.doc
+
+    dt = proj_doc["dt"]
+    step_unit = proj_doc["step_unit"]
+    equil_time = proj_doc["equil_time"]
+    equil_steps = int(equil_time * step_unit)
+    min_periods = proj_doc["min_periods"] * 5
+    dumps = 4
+    print(dumps)
+    # period_times = proj_doc["period_times"]
+    period_times = [1000.0]  # only do long timestep, others don't matter
+    # max_shears = proj_doc["max_shears"]
+    # max_shears.append(0.04)
+    # max_shears.append(0.06)
+    # max_shears.append(0.07)
+    max_shears = [0.05]
+
+    # temps = doc["temps"]
+    # temps.append(doc["temps"][-1]*0.1)
+    # temps.append(doc["temps"][-1]*0.01)
+    temps = [0.001983645726339585*2, 0.001983645726339585*5, 0.01983645726339585]  # 0.00019836457263395848 # 0.01983645726339585, 
+
+    # , 0.049591143158489615, 0.09918228631697923
+
+    # 0.14877342947546884, 0.19836457263395846, # removed this because data
+    # just isn't interesting out here
+    
+    # temps = [doc["temps"][-1]*0.1, doc["temps"][-1]*0.01]  # 0.1 * Tg and 0.01 * Tg
+
+    for temp, period, max_shear in itertools.product(temps, period_times, max_shears):
+
+        path = pathlib.Path(job.fn(f"longest_experiments/max-shear-{max_shear:.2f}/temp-{temp:.4e}"))
+        os.makedirs(path.as_posix(), exist_ok=True)
+
+        period_steps = int(period * step_unit)
+        total_steps = int(min_periods * period_steps)
+        output_period = int(period_steps / dumps)
+
+        # make sure period_steps is a multiple of dumps
+        assert period_steps % dumps == 0
+
+        try:
+            sim = hoomd.Simulation(device=hoomd.device.GPU(), seed=doc["seed"])
+            sim.create_state_from_gsd(job.fn("init.gsd"))
+            if temp == 0.0:
+                fire, nve = _setup_fire_sim(job, sim)
+                raise NotImplementedError("Fire is not yet implemented")
+                while not fire.converged:
+                    sim.run(1000)
+            else:
+                nvt = _setup_nvt_sim(job, sim, temp=temp)
+
+                sim.run(0)
+                sim.state.thermalize_particle_momenta(filter=hoomd.filter.All(), kT=temp)
+
+            print("initial state box_xy:", sim.state.box.xy)
+
+            thermo = hoomd.md.compute.ThermodynamicQuantities(filter=hoomd.filter.All())
+            logger = hoomd.logging.Logger()
+            logger.add(thermo, quantities=["pressure", "pressure_tensor", "kinetic_temperature"])
+            sim.operations.computes.clear()
+            sim.operations.computes.append(thermo)
+
+            sim.operations.updaters.clear()
+            trigger = hoomd.trigger.Periodic(1)
+            variant = methods.Oscillate(1, sim.timestep, period_steps)
+            old_box = sim.state.box
+            new_box = copy.deepcopy(old_box)
+            old_box.xy = -max_shear
+            new_box.xy = max_shear
+            updater = hoomd.update.BoxResize(trigger, old_box, new_box, variant)
+            sim.operations.updaters.append(updater)
+
+            for iter in range(5):
+
+                outfile = path / f"traj_period-{period}_iter-{iter}.gsd"
+                badfile = path / f"traj_period-{period}_iter-{iter}.gsd.bad"
+                print("Current file:", outfile.as_posix())
+
+                if badfile.exists():
+                    print("Bad file exists, must rerun")
+                    
+
+                if outfile.exists():
+                    file = gsd.hoomd.open(str(outfile), "rb")
+                    if len(file) >= min_periods * dumps:
+
+                        print("File already exists, skipping")
+                        # load last step as input for next iter
+                        old_snap = gsd.hoomd.open(outfile.as_posix(), "rb")[-1]
+                        # convert to hoomd snapshot from gsd
+                        hoomd_snap = hoomd.Snapshot.from_gsd_snapshot(old_snap, sim.device.communicator)
+                        sim.state.set_snapshot(hoomd_snap)
+                        continue
+                    else:
+                        print("File exists, but is incomplete, continuing")
+
+
+                gsd_writer = hoomd.write.GSD(hoomd.trigger.Periodic(output_period), outfile, mode="wb", log=logger)
+                sim.operations.writers.clear()
+                sim.operations.writers.append(gsd_writer)
+
+                sim.run(total_steps, write_at_start=False)
+            
+        except KeyboardInterrupt:
+            raise
+        except:
+            print("Error during run, saving bad file")
+            shutil.move(outfile.as_posix(), badfile.as_posix())
+        finally:
+            try:
+                logger.remove(thermo)
+                sim.operations.computes.clear()
+                del thermo
+                print("Finished run")
+            except NameError:
+                print("Something weird happened, but run is over")
+            
+
+    doc["lowstorage_longest_experiment_completed"] = True
 
 @Project.operation
 @Project.pre.true("initialized")
@@ -1521,7 +2086,7 @@ def init_fire_minimize(job: signac.Project.Job):
 
     # setup details for sims
     runs = job.fn("init.gsd")
-    for run in runs:
+    for run in [runs]:
         print(run)
         traj = gsd.hoomd.open(run)
         orig_len = len(traj)

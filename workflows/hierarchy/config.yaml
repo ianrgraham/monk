@@ -1,0 +1,2 @@
+root: ${MONK_DATA_DIR}/monk/hierarchy
+origin: ${MONK_DATA_DIR}/monk/2d-esl

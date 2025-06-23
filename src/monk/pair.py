@@ -1,7 +1,11 @@
 from typing import Dict
 
 import hoomd
-import hoomd.pair_plugin.pair as p_pair
+# if pair_plugin exists import it
+try:
+    import hoomd.pair_plugin.pair as p_pair
+except ImportError:
+    p_pair = None
 import numpy as np
 
 from typing import Optional
@@ -19,6 +23,48 @@ def KA_LJ(nlist: hoomd.md.nlist.NeighborList) -> hoomd.md.pair.Pair:
     sig_BB = 0.88
 
     lj = hoomd.md.pair.LJ(nlist=nlist, mode="shift")
+    lj.params[('A', 'A')] = dict(epsilon=eps_AA, sigma=sig_AA)
+    lj.r_cut[('A', 'A')] = r_cutoff * sig_AA
+    lj.params[('A', 'B')] = dict(epsilon=eps_AB, sigma=sig_AB)
+    lj.r_cut[('A', 'B')] = r_cutoff * sig_AB
+    lj.params[('B', 'B')] = dict(epsilon=eps_BB, sigma=sig_BB)
+    lj.r_cut[('B', 'B')] = r_cutoff * sig_BB
+
+    return lj
+
+def KA_LJ_Low(nlist: hoomd.md.nlist.NeighborList) -> hoomd.md.pair.Pair:
+    '''Kob-Anderson Lennard-Jones potential
+    '''
+    r_cutoff = 2.5
+    eps_AA = 1
+    eps_AB = 1.5
+    eps_BB = 0.5
+    sig_AA = 1
+    sig_AB = 0.8
+    sig_BB = 0.88
+
+    lj = p_pair.LJLow(nlist=nlist, mode="shift")
+    lj.params[('A', 'A')] = dict(epsilon=eps_AA, sigma=sig_AA)
+    lj.r_cut[('A', 'A')] = r_cutoff * sig_AA
+    lj.params[('A', 'B')] = dict(epsilon=eps_AB, sigma=sig_AB)
+    lj.r_cut[('A', 'B')] = r_cutoff * sig_AB
+    lj.params[('B', 'B')] = dict(epsilon=eps_BB, sigma=sig_BB)
+    lj.r_cut[('B', 'B')] = r_cutoff * sig_BB
+
+    return lj
+
+def KA_LJ_xplor(nlist: hoomd.md.nlist.NeighborList) -> hoomd.md.pair.Pair:
+    '''Kob-Anderson Lennard-Jones potential
+    '''
+    r_cutoff = 2.5
+    eps_AA = 1
+    eps_AB = 1.5
+    eps_BB = 0.5
+    sig_AA = 1
+    sig_AB = 0.8
+    sig_BB = 0.88
+
+    lj = hoomd.md.pair.LJ(nlist=nlist, mode="xplor")
     lj.params[('A', 'A')] = dict(epsilon=eps_AA, sigma=sig_AA)
     lj.r_cut[('A', 'A')] = r_cutoff * sig_AA
     lj.params[('A', 'B')] = dict(epsilon=eps_AB, sigma=sig_AB)

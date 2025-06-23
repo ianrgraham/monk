@@ -1,6 +1,6 @@
 import argparse
 import signac
-import flow
+# import flow
 import yaml
 import re
 import os
@@ -33,11 +33,15 @@ def get_config(path: str = None):
     assert "root" in config  # assert the a workspace directory is specified
     return config
 
+def get_any_yaml(path: str):
+    with open(path) as file:
+        config = yaml.load(file, yaml.FullLoader)
+    return config
 
-class MonkProject(flow.FlowProject):
+# class MonkProject(flow.FlowProject):
 
-    def main(self):
+#     def main(self):
 
-        parser = argparse.ArgumentParser()
+#         parser = argparse.ArgumentParser()
 
-        super(MonkProject).main(parser=parser)
+#         super(MonkProject).main(parser=parser)
